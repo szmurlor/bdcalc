@@ -103,11 +103,12 @@ def read_doses(filename):
 
 @ray.remote
 def calculate_single_beamlet(beamlets, opt):
+    print(f"beamlets: {beamlets}")
     import sys
-    sys.path.append("/doses-nfs/dicomvis")
-    sys.path.append("/doses-nfs/dicomvis/dicomvis")
-    sys.path.append("/doses-nfs/vmc++")
-    print(sys.path)
+    #sys.path.append("/doses-nfs/dicomvis")
+    #sys.path.append("/doses-nfs/dicomvis/dicomvis")
+    #sys.path.append("/doses-nfs/vmc++")
+    #print(sys.path)
     res = {"beamlets": [],
            "sum_of_beamlet_doses_filename": None}
     try:
@@ -126,6 +127,7 @@ def calculate_single_beamlet(beamlets, opt):
         first_idx = None
         last_idx = None
         for beamlet in beamlets:
+            print(f"beamlet: {beamlet}")
             idx = beamlet["idx"]
 
             # --------------------- OBLICZ UZYWAJAC VNC ----------------------------------------------------
@@ -428,7 +430,8 @@ class VMC:
             #    info("Tworze ppserver tylko lokalny ncpus=%d" % options["ncpu"])
             #    jobServer = pp.Server(ncpus=options["ncpu"], secret=str(options["ppsecret"]), socket_timeout=300)
 
-        ray.init(redis_address="10.42.2.78:59999")
+        # ray.init(redis_address="10.42.2.78:59999")
+        ray.init(redis_address="10.0.2.15:59999")
         #beamlets = []
         #for beamlet in self.conf_data['beamlets']:
         #    beamlets.append(beamlet)
@@ -452,7 +455,7 @@ class VMC:
                 break
 
         # r_ids = [calculate_single_beamlet.remote(b,opt) for b in self.conf_data['beamlets']]
-        r_ids = [calculate_single_beamlet.remote(b,opt) for b in bb]
+        r_ids = [calculate_single_beamlet.remote([b],opt) for b in bb]
         info("Waiting for results...")
         rs = ray.get(r_ids)
         info("Starting postrocessing...")
