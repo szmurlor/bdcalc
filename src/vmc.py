@@ -431,7 +431,8 @@ class VMC:
             #    jobServer = pp.Server(ncpus=options["ncpu"], secret=str(options["ppsecret"]), socket_timeout=300)
 
         # ray.init(redis_address="10.42.2.78:59999")
-        ray.init(redis_address="10.0.2.15:59999")
+        #ray.init(redis_address="10.0.2.15:59999")
+        ray.init(redis_address=options["ray_redis_address"])
         #beamlets = []
         #for beamlet in self.conf_data['beamlets']:
         #    beamlets.append(beamlet)
@@ -447,12 +448,13 @@ class VMC:
         #    jobServer.destroy()
 
         bb = []
-        ii = 0
+        imax = 0
         for b in self.conf_data['beamlets']:
             bb.append(b)
-            ii += 1
-            if ii > 5:
-                break
+            imax += 1
+            if "ray_calc_max_beamlets" in options and options["ray_calc_max_beamlets"] >= 0:
+                if imax >= options["ray_calc_max_beamlets"]:
+                    break
 
         # r_ids = [calculate_single_beamlet.remote(b,opt) for b in self.conf_data['beamlets']]
         r_ids = [calculate_single_beamlet.remote([b],opt) for b in bb]

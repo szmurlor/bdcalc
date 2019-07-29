@@ -340,7 +340,7 @@ def default_options():
         "ncase": 50000,                  # liczba próbek MC
         "nbatch": 10,                    # liczba iteracji MC
         "histograms": False,             # czy generować histogramy
-        "postprocess": False,            # Nie licz dawek, tylko postaraj się je wczytać z binarnych plików Cache
+        "use_cached_doses": False,            # Nie licz dawek, tylko postaraj się je wczytać z binarnych plików Cache
         "augment_planning_grid": False,  # augment planning grid to geometrically  cover all strutures from RS
         "water_phantom": False,          # zastosuj poprawkę do CT - fantom wodny
         "debug_level": 3,
@@ -366,6 +366,8 @@ def default_options():
         "delete_vmc_file_after": True,
         "ppservers": None,
         "ppsecret": None,
+        "ray_redis_address": "10.0.2.15:59999",
+        "ray_calc_max_beamlets": 8,
         "doses_dos_path": None,  # folder do którego VMC++ zapisze dawki w formacie binarnym
         "cluster_config_file": None,  # lokalizacja pliku konfiguracji danego wezla jezeli doses_dos_path == cluster
         "scale_algorithm": "individual_voxels",  # "total_avg_max" lub "individual_voxels"
@@ -692,7 +694,7 @@ if __name__ == '__main__':
         beamlets_doses_cachefile = rass_data.processing("%s_%d.beamlets_doses_map_cache" % (treatment_name, beamNo))
         beam_doses_cachefile = rass_data.processing("%s_%d.beam_doses_cache" % (treatment_name, beamNo))
         needs_calculate = True
-        if options["postprocess"]:
+        if options["use_cached_doses"]:
             beamTotalDoses = read_beam_doses(beam_doses_cachefile, mcDosesVMC.shape)
             beamlets_doses = read_beamlets_doses_map(beamlets_doses_cachefile)
             needs_calculate = beamTotalDoses is None or beamlets_doses is None
