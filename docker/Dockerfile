@@ -9,6 +9,8 @@ RUN apt-get update \
         build-essential \
         curl \
         unzip \
+        libxt-dev \
+        libgl1-mesa-glx \
     && apt-get clean \
     && echo 'export PATH=/opt/conda/bin:$PATH' > /etc/profile.d/conda.sh \
     && wget \
@@ -23,13 +25,16 @@ RUN apt-get update \
         flatbuffers \
         cython==0.29.0 \
         numpy==1.15.4 \
-	ray \
-	matplotlib \
-	vtk \
-	aiohttp psutil
+    	ray \
+	    matplotlib \
+	    vtk \
+	    aiohttp psutil
 
 # To avoid the following error on Jenkins:
 # AttributeError: 'numpy.ufunc' object has no attribute '__module__'
 RUN /opt/conda/bin/pip uninstall -y dask
 
 ENV PATH "/opt/conda/bin:$PATH"
+ENV LC_ALL "C.UTF-8"
+ENV LANG "C.UTF-8"
+
