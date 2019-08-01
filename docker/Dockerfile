@@ -22,7 +22,11 @@ RUN apt-get update \
     && /opt/conda/bin/pip install \
         flatbuffers \
         cython==0.29.0 \
-        numpy==1.15.4
+        numpy==1.15.4 \
+	ray \
+	matplotlib \
+	vtk \
+	aiohttp psutil
 
 # To avoid the following error on Jenkins:
 # AttributeError: 'numpy.ufunc' object has no attribute '__module__'
