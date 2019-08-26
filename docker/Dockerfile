@@ -12,6 +12,8 @@ RUN apt-get update \
 	nfs-common \
         libsm6 libgl1-mesa-glx \
 	vim \
+        libxt-dev \
+        libgl1-mesa-glx \
     && apt-get clean \
     && echo 'export PATH=/opt/conda/bin:$PATH' > /etc/profile.d/conda.sh \
     && wget \
