@@ -4,7 +4,7 @@ import os
 import copy
 import numpy as np
 import itertools as it
-import dicom as pydicom
+import pydicom
 import dicomutils
 from ct import CTVolumeDataReader
 from dicomutils import asASCII

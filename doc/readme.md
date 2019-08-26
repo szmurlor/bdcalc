@@ -23,3 +23,33 @@ setup(
 )
 ...
 ```
+
+Obsługa Dockera:
+
+```bash
+cd docker
+docker build --tag=szmurlor:bdcalc-0.1 .
+
+docker start first # first to jest nazwa kontenera można użyć też ID
+docker exec -t -i first "/bin/bash"
+
+```
+
+Montowanie zasobu NFS:
+
+```bash
+$ docker volume create \
+    --name mynfs \
+    --opt type=nfs \
+    --opt device=:<nfs export path> \
+    --opt o=addr=<nfs host> \
+    mynfs
+$ docker run -it -v mynfs:/foo alpine sh
+```
+
+Na przykład tak:
+
+```bash
+docker volume create --driver local --opt type=nfs --opt o=addr=goope-nas-2 --opt device=:/nfs/doses doses-nf
+```
+

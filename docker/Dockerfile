@@ -1,6 +1,6 @@
 # The base-deps Docker image installs main libraries needed to run Ray
 
-FROM ubuntu:xenial
+FROM ubuntu:bionic
 RUN apt-get update \
     && apt-get install -y \
         git \
@@ -26,10 +26,24 @@ RUN apt-get update \
 	ray \
 	matplotlib \
 	vtk \
-	aiohttp psutil
-
-# To avoid the following error on Jenkins:
-# AttributeError: 'numpy.ufunc' object has no attribute '__module__'
-RUN /opt/conda/bin/pip uninstall -y dask
+	aiohttp psutil \
+	pydicom
+RUN /opt/conda/bin/pip install --upgrade pip
+RUN apt-get install -y libsm6 \
+      	libgl1-mesa-glx \
+	vim
 
 ENV PATH "/opt/conda/bin:$PATH"
+ENV LC_ALL "C.UTF-8"
+ENV LANG "C.UTF-8"
+
+WORKDIR bdcalc
+COPY ./src/*.py /bdcalc/
+COPY ./vmc_c/create_pareto_vmc_c.pyx /bdcalc/vmc_c/
+COPY ./vmc_c/setup.py /bdcalc/vmc_c/
+RUN cd /bdcalc/vmc_c \
+    && python setup.py install
+
+RUN apt install -y nfs-common
+
+CMD ["bash"]
