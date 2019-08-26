@@ -9,6 +9,9 @@ RUN apt-get update \
         build-essential \
         curl \
         unzip \
+	nfs-common \
+        libsm6 libgl1-mesa-glx \
+	vim \
     && apt-get clean \
     && echo 'export PATH=/opt/conda/bin:$PATH' > /etc/profile.d/conda.sh \
     && wget \
@@ -16,8 +19,8 @@ RUN apt-get update \
         -O /tmp/anaconda.sh \
     && /bin/bash /tmp/anaconda.sh -b -p /opt/conda \
     && rm /tmp/anaconda.sh \
-    && /opt/conda/bin/conda install -y \
-        libgcc \
+    && /opt/conda/bin/pip install --upgrade pip \
+    && /opt/conda/bin/conda install -y libgcc \
     && /opt/conda/bin/conda clean -y --all \
     && /opt/conda/bin/pip install \
         flatbuffers \
@@ -28,10 +31,6 @@ RUN apt-get update \
 	vtk \
 	aiohttp psutil \
 	pydicom
-RUN /opt/conda/bin/pip install --upgrade pip
-RUN apt-get install -y libsm6 \
-      	libgl1-mesa-glx \
-	vim
 
 ENV PATH "/opt/conda/bin:$PATH"
 ENV LC_ALL "C.UTF-8"
@@ -44,6 +43,21 @@ COPY ./vmc_c/setup.py /bdcalc/vmc_c/
 RUN cd /bdcalc/vmc_c \
     && python setup.py install
 
-RUN apt install -y nfs-common
+COPY ./docker/start-head.sh /bdcalc/
+COPY ./docker/start-node.sh /bdcalc/
+RUN mkdir /bdcalc/ray_session
+
+#RUN apt-get install -y openssh-server
+#RUN mkdir /var/run/sshd
+#RUN echo 'root:HasloDoDoses2019' | chpasswd
+#RUN sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+
+# SSH login fix. Otherwise user is kicked off after login
+#RUN sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/pam.d/sshd
+
+#ENV NOTVISIBLE "in users profile"
+#RUN echo "export VISIBLE=now" >> /etc/profile
+
+#EXPOSE 22
 
 CMD ["bash"]

@@ -1,0 +1,57 @@
+version: "3"
+services:
+  ray-head:
+    hostname: ray-head
+    # replace username/repo:tag with your name and image details
+    image: szmurlor/bdcalc:0.1
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: "4"
+          memory: 8192M
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "40022:22"
+    networks:
+      - doses-net
+    volumes:
+      - doses-nfs:/doses-nfs
+    deploy:
+      placement:
+        constraints: [node.role == manager]      
+    command: /bin/bash start-head.sh && sleep infinity
+    #command: sleep infinity
+  ray-node:
+    # replace username/repo:tag with your name and image details
+    hostname: ray-node-{{.Node}}
+    image: szmurlor/bdcalc:0.1
+    deploy:
+      mode: global
+      #replicas: 2
+      resources:
+        limits:
+          cpus: "4"
+          memory: 8192M
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "40023:22"
+    networks:
+      - doses-net
+    volumes:
+      - doses-nfs:/doses-nfs
+    #deploy:
+    #  placement:
+    #    constraints: [node.role != manager]
+    command: /bin/bash start-node.sh && sleep infinity  
+    #command: sleep infinity  
+networks:
+  doses-net:
+volumes:
+  doses-nfs:
+    driver_opts:
+      type: "nfs"
+      o: "addr=goope-nas-2.iem.pw.edu.pl,nolock,soft,rw"
+      device: ":/nfs/doses"

@@ -53,3 +53,21 @@ Na przykład tak:
 docker volume create --driver local --opt type=nfs --opt o=addr=goope-nas-2 --opt device=:/nfs/doses doses-nf
 ```
 
+Inny przykład (bliższy naszej konfiguracji):
+
+```bash
+docker run -ti -v doses-nfs:/doses-nfs bdcalc:0.1
+```
+
+Tworzymy teraz kontener:
+
+```bash
+docker create -ti  -v doses-nfs:/doses-nfs --name doses-ham-c1 bdcalc:0.1
+```
+
+Budowanie obrazu (najlepiej będąc w główny katalogu) - warto teraz dodać builddocker.sh
+
+```bash
+docker build -t bdcalc:0.1 -f docker/Dockerfile .
+```
+
