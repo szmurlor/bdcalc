@@ -35,7 +35,9 @@ services:
       restart_policy:
         condition: on-failure
     networks:
-      - doses-net
+      hostnet: {}  
+      #networks:
+      #- doses-net
     dns:
       - 10.40.33.2
       - 10.40.33.3
@@ -44,7 +46,7 @@ services:
     command: /bin/bash start-node.sh
 
 networks:
-  doses-net:
+        #doses-net:
   hostnet:
     external: true    
     name: host
