@@ -35,8 +35,8 @@ services:
       restart_policy:
         condition: on-failure
       placement:
-        constraints: [node.role != manager]      
-     networks:
+        constraints: [node.role == worker]      
+    networks:
       hostnet: {}  
       #networks:
       #- doses-net
