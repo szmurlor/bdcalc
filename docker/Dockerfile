@@ -14,6 +14,8 @@ RUN apt-get update \
 	vim \
         libxt-dev \
         libgl1-mesa-glx \
+        iputils-ping \
+        iproute2 \
     && apt-get clean \
     && echo 'export PATH=/opt/conda/bin:$PATH' > /etc/profile.d/conda.sh \
     && wget \
