@@ -19,7 +19,7 @@ RUN apt-get update \
     && apt-get clean \
     && echo 'export PATH=/opt/conda/bin:$PATH' > /etc/profile.d/conda.sh \
     && wget \
-        --quiet 'https://repo.continuum.io/archive/Anaconda3-5.2.0-Linux-x86_64.sh' \
+        --quiet 'https://repo.anaconda.com/archive/Anaconda3-2019.07-Linux-x86_64.sh' \
         -O /tmp/anaconda.sh \
     && /bin/bash /tmp/anaconda.sh -b -p /opt/conda \
     && rm /tmp/anaconda.sh \
@@ -28,8 +28,8 @@ RUN apt-get update \
     && /opt/conda/bin/conda clean -y --all \
     && /opt/conda/bin/pip install \
         flatbuffers \
-        cython==0.29.0 \
-        numpy==1.15.4 \
+        cython \
+        numpy \
 	ray \
 	matplotlib \
 	vtk \
@@ -50,18 +50,5 @@ RUN cd /bdcalc/vmc_c \
 COPY ./docker/start-head.sh /bdcalc/
 COPY ./docker/start-node.sh /bdcalc/
 RUN mkdir /bdcalc/ray_session
-
-#RUN apt-get install -y openssh-server
-#RUN mkdir /var/run/sshd
-#RUN echo 'root:HasloDoDoses2019' | chpasswd
-#RUN sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
-
-# SSH login fix. Otherwise user is kicked off after login
-#RUN sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/pam.d/sshd
-
-#ENV NOTVISIBLE "in users profile"
-#RUN echo "export VISIBLE=now" >> /etc/profile
-
-#EXPOSE 22
 
 CMD ["bash"]
