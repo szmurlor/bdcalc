@@ -51,4 +51,6 @@ COPY ./docker/start-head.sh /bdcalc/
 COPY ./docker/start-node.sh /bdcalc/
 RUN mkdir /bdcalc/ray_session
 
+COPY ./docker/docker-cluster.py /bdcalc/
+
 CMD ["bash"]
