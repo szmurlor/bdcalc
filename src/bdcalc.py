@@ -30,6 +30,10 @@ SCALE = 0.1
 HIST_PTS = 50
 
 
+#ray.init(redis_address="10.42.2.78:59999")
+#ray.init(redis_address="10.0.2.15:59999")
+#ray.init(redis_address=options["ray_redis_address"])        
+#ray.init(redis_address="172.17.0.2:59422")
 ray.init(ignore_reinit_error=True)
 import vmc
 
@@ -879,6 +883,8 @@ if __name__ == '__main__':
         info("Max total npTotalDoses: %f" % np.max(npTotalDoses))
         vmc.saveToVTI(rass_data.output("totalDoses"), np.reshape(npTotalDoses, np.prod([kmax, jmax, imax])), [dx, dy, dz], [kmax, jmax, imax], [xbase, ybase, zbase])
 
+    ray.timeline("/tmp/ray-timeline.json")
+    
     if options["histograms"]:
 
         info("Generating histograms for original (ECLIPSE) total doses...")

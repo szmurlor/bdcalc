@@ -107,85 +107,73 @@ def ala(x,y):
 
 @ray.remote
 def calculate_single_beamlet(beamlets, opt):
-    res = {"beamlets": [],
-           "sum_of_beamlet_doses_filename": None}
+    res = {"beamlets": []}
     try:
         condInterestingVoxels = read_matrix(opt["interesting_voxels"])
         dose_tolerance_min = float(opt["dose_tolerance_min"])
         beam_no = opt["beam_no"]
-        #sum_of_beamlet_doses = None
         hostname = socket.gethostname()
 
         import tempfile
-        # node_processing_folder = opt["processing"]
-        node_processing_folder = tempfile.mkdtemp()
-        print("Using node processing folder: %s" % node_processing_folder)
 
-        first_idx = None
-        last_idx = None
-        for beamlet in beamlets:
-            print(f"Processing beamlet no: {beamlet}")
-            idx = beamlet["idx"]
-            print(f"Beamlet idx is: {idx}")
+        with tempfile.TemporaryDirectory() as node_processing_folder:
+            print("Using node processing folder: %s" % node_processing_folder)
 
-            # --------------------- OBLICZ UZYWAJAC VNC ----------------------------------------------------
-            vmc_beamlet_spec_filename = "%s/beamlet_%s.vmc" % (node_processing_folder, idx)
-            vmc_beamlet_spec_name = "beamlet_%s" % idx
-            write_beamlet(beamlet, vmc_beamlet_spec_filename, opt)
+            first_idx = None
+            last_idx = None
+            for beamlet in beamlets:
+                print(f"Processing beamlet no: {beamlet}")
+                idx = beamlet["idx"]
+                print(f"Beamlet idx is: {idx}")
 
-            if "ncpu" in opt and opt["ncpu"] > 1:
-                print("Calling in parallel: %s/vmc_wrapper %s %s %s %s %s" % (opt["vmc_home"], opt["vmc_home"], node_processing_folder, opt["xvmc_dir"], "%s/bin/vmc_Linux.exe" % opt["vmc_home"], vmc_beamlet_spec_name))
-                p = subprocess.Popen(["%s/vmc_wrapper" % opt["vmc_home"], opt["vmc_home"], node_processing_folder, opt["xvmc_dir"], "%s/bin/vmc_Linux.exe" % opt["vmc_home"], vmc_beamlet_spec_name], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                p.wait()
-            else:
-                info("Calling sequential: %s/vmc_wrapper %s %s %s %s %s" % (opt["vmc_home"], opt["vmc_home"], node_processing_folder, opt["xvmc_dir"], "%s/bin/vmc_Linux.exe" % opt["vmc_home"], vmc_beamlet_spec_name))
-                p = subprocess.Popen(["%s/vmc_wrapper" % opt["vmc_home"], opt["vmc_home"], node_processing_folder, opt["xvmc_dir"], "%s/bin/vmc_Linux.exe" % opt["vmc_home"], vmc_beamlet_spec_name])
-                p.wait()
+                # --------------------- OBLICZ UZYWAJAC VNC ----------------------------------------------------
+                vmc_beamlet_spec_filename = "%s/beamlet_%s.vmc" % (node_processing_folder, idx)
+                vmc_beamlet_spec_name = "beamlet_%s" % idx
+                write_beamlet(beamlet, vmc_beamlet_spec_filename, opt)
 
-            doses_filename = "%s/%s_phantom.dos" % (node_processing_folder, vmc_beamlet_spec_name)
+                if "ncpu" in opt and opt["ncpu"] > 1:
+                    print("Calling in parallel: %s/vmc_wrapper %s %s %s %s %s" % (opt["vmc_home"], opt["vmc_home"], node_processing_folder, opt["xvmc_dir"], "%s/bin/vmc_Linux.exe" % opt["vmc_home"], vmc_beamlet_spec_name))
+                    p = subprocess.Popen(["%s/vmc_wrapper" % opt["vmc_home"], opt["vmc_home"], node_processing_folder, opt["xvmc_dir"], "%s/bin/vmc_Linux.exe" % opt["vmc_home"], vmc_beamlet_spec_name], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    p.wait()
+                else:
+                    info("Calling sequential: %s/vmc_wrapper %s %s %s %s %s" % (opt["vmc_home"], opt["vmc_home"], node_processing_folder, opt["xvmc_dir"], "%s/bin/vmc_Linux.exe" % opt["vmc_home"], vmc_beamlet_spec_name))
+                    p = subprocess.Popen(["%s/vmc_wrapper" % opt["vmc_home"], opt["vmc_home"], node_processing_folder, opt["xvmc_dir"], "%s/bin/vmc_Linux.exe" % opt["vmc_home"], vmc_beamlet_spec_name])
+                    p.wait()
 
-            beamlet_doses = read_doses(doses_filename)
-            # --------------------------------------------------------------------------------------------
+                doses_filename = "%s/%s_phantom.dos" % (node_processing_folder, vmc_beamlet_spec_name)
 
-            if opt["delete_doses_file_after"]:
-                os.remove(doses_filename)
+                beamlet_doses = read_doses(doses_filename)
+                # --------------------------------------------------------------------------------------------
 
-            if opt["delete_vmc_file_after"]:
-                os.remove(vmc_beamlet_spec_filename)
+                if opt["delete_doses_file_after"]:
+                    os.remove(doses_filename)
 
-            if beamlet_doses is not None:
-                last_idx = idx
-                #if sum_of_beamlet_doses is None:
-                #    first_idx = idx
-                #    sum_of_beamlet_doses = beamlet_doses
-                #else:
-                #    sum_of_beamlet_doses += beamlet_doses
+                if opt["delete_vmc_file_after"]:
+                    os.remove(vmc_beamlet_spec_filename)
 
-                if condInterestingVoxels is not None:
-                    ####################################################################################################
-                    # Wybierz tylko dawki voxeli, których wartość większa od 0.001 mediany oraz należy do jakiegoś ROIa
-                    # Wynik zapisz w macierzy nwierszy na dwie kolumny. Pierwsza kolumna to indeks voxela, druga dawka
-                    ####################################################################################################
-                    maxDoseThisBeamlet = numpy.max(beamlet_doses)
-                    # print "Wycinam tylko voksele, w ktorych dawka jest wieksza od: %f (%f%%)" %
-                    # (maxDoseThisBeamlet * dose_tolerance_min, dose_tolerance_min)
-                    cond = (beamlet_doses > (maxDoseThisBeamlet * dose_tolerance_min)) & (condInterestingVoxels)
-                    vdoses = beamlet_doses[cond]
-                    vindexes = numpy.where(cond)[0]  # zwraca indeksy pasujących
-                    mdoses = numpy.zeros((len(vdoses), 2), dtype=numpy.float32)
-                    mdoses[:, 0] = vindexes
-                    mdoses[:, 1] = vdoses
+                if beamlet_doses is not None:
+                    last_idx = idx
 
-                    beamlet["doses_map"] = mdoses
-            else:
-                print("ERROR! beamlet_doses == None!")
+                    if condInterestingVoxels is not None:
+                        ####################################################################################################
+                        # Wybierz tylko dawki voxeli, których wartość większa od 0.001 mediany oraz należy do jakiegoś ROIa
+                        # Wynik zapisz w macierzy nwierszy na dwie kolumny. Pierwsza kolumna to indeks voxela, druga dawka
+                        ####################################################################################################
+                        maxDoseThisBeamlet = numpy.max(beamlet_doses)
+                        # print "Wycinam tylko voksele, w ktorych dawka jest wieksza od: %f (%f%%)" %
+                        # (maxDoseThisBeamlet * dose_tolerance_min, dose_tolerance_min)
+                        cond = (beamlet_doses > (maxDoseThisBeamlet * dose_tolerance_min)) & (condInterestingVoxels)
+                        vdoses = beamlet_doses[cond]
+                        vindexes = numpy.where(cond)[0]  # zwraca indeksy pasujących
+                        mdoses = numpy.zeros((len(vdoses), 2), dtype=numpy.float32)
+                        mdoses[:, 0] = vindexes
+                        mdoses[:, 1] = vdoses
 
-            res['beamlets'].append(beamlet)
+                        beamlet["doses_map"] = mdoses
+                else:
+                    print("ERROR! beamlet_doses == None!")
 
-        #if sum_of_beamlet_doses is not None:
-        #    sum_of_beamlet_doses_filename = ("%s/sum_beamlets_%s-%s_%d.mdoses" % (node_processing_folder, first_idx, last_idx, beam_no))
-        #    save_matrix(sum_of_beamlet_doses, sum_of_beamlet_doses_filename)
-        #    res["sum_of_beamlet_doses_filename"] = sum_of_beamlet_doses_filename
+                res['beamlets'].append(beamlet)
 
         return res
     except:
@@ -290,9 +278,6 @@ class VMC:
         self.ncase = None
         self.nbatch = None
         self.ctfiles = None
-        self.ppservers = None
-        self.ppsecret = None
-        self.pportion = None
 
         # To jest infromacja o ile trzeba było rozszerzyć siatkeplanowania
         # aby pokryła cały Patient outline
@@ -317,8 +302,6 @@ class VMC:
         self.lock = thread.allocate_lock()
         self.ncpu = 1
         self.debug_max_beamlets = None
-        self.ppservers = None
-        self.ppsecret = None
 
         # If water phantom, then fill in CT with ones everywhere.
         self.water_phantom = False
@@ -329,25 +312,12 @@ class VMC:
 
     def postprocess(self, response):
         start = time.time()
-        #sum_of_beamlet_doses_filename = response["sum_of_beamlet_doses_filename"]
-
-        #info("Starting postprocessing of sum_of_beamlet_doses: %s" % sum_of_beamlet_doses_filename)
-        #sum_of_beamlet_doses = read_matrix(sum_of_beamlet_doses_filename)
-        #if sum_of_beamlet_doses is not None:
-        #    self.lock.acquire()
-        #    try:
-        #        self.total_doses += sum_of_beamlet_doses
-        #    finally:
-        #        self.lock.release()
-        #os.remove(sum_of_beamlet_doses_filename)
 
         for beamlet in response['beamlets']:
             beamlet_idx = beamlet['idx']
             info("Starting postprocessing of beamlet [%d]" % beamlet_idx)
-            #mdoses = read_matrix(beamlet["doses_map_filename"])
             mdoses = beamlet["doses_map"]
             info("Size of interesting doses for %s is: %d" % (beamlet_idx, mdoses.shape[0]))
-            #os.remove(beamlet["doses_map_filename"])
 
             self.total_doses[mdoses[:,0].astype(int)] = self.total_doses[mdoses[:,0].astype(int)] + mdoses[:,1]
 
@@ -416,38 +386,6 @@ class VMC:
         if "dose_tolerance_min" in options:
             opt["dose_tolerance_min"] = options["dose_tolerance_min"]
 
-
-        #jobServer = None
-        #if self.ncpu > 1:
-            #if options["ppservers"] is not None:
-            #    info("Tworze ppserver dla klastra: %s" % options["ppservers"])
-            #    jobServer = pp.Server(ncpus=options["ncpu"], ppservers=tuple(options["ppservers"].split(",")),
-            #                          secret=str(options["ppsecret"]), socket_timeout=300)
-            #else:
-            #    info("Tworze ppserver tylko lokalny ncpus=%d" % options["ncpu"])
-            #    jobServer = pp.Server(ncpus=options["ncpu"], secret=str(options["ppsecret"]), socket_timeout=300)
-
-        # ray.init(redis_address="10.42.2.78:59999")
-        #ray.init(redis_address="10.0.2.15:59999")
-        #ray.init(redis_address=options["ray_redis_address"])        
-        #ray.init(redis_address="172.17.0.2:59422")
-
-        #beamlets = []
-        #for beamlet in self.conf_data['beamlets']:
-        #    beamlets.append(beamlet)
-        #    if len(beamlets) == self.pportion:
-                #self._submit_job(jobServer, beamlets, opt)
-        #        beamlets = []
-
-        #if len(beamlets) > 0:
-            #self._submit_job(jobServer, beamlets, opt)
-
-        #if self.ncpu > 1:
-        #    jobServer.wait()
-        #    jobServer.destroy()
-
-        #calculate_single_beamlet(None,opt)
-
         bb = []
         imax = 0
         for b in self.conf_data['beamlets']:
@@ -457,22 +395,22 @@ class VMC:
                 if imax >= options["ray_calc_max_beamlets"]:
                     break
 
-        # r_ids = [calculate_single_beamlet.remote(b,opt) for b in self.conf_data['beamlets']]
         r_ids = [calculate_single_beamlet.remote([b],opt) for b in bb]
-        info("Waiting for results...")
-        rs = ray.get(r_ids)
-        info("Starting postrocessing...")
-        for r in rs:
-            self.postprocess(r)
 
-        #ray.ray.shutdown()
+        r_finished, r_waiting = ray.wait(r_ids, 1)
+        while r_waiting:            
+            for r in r_finished:
+                info(f"Posprocesing...")
+                self.postprocess(ray.get(r))
+            info("Waiting for results...")
+            r_finished, r_waiting = ray.wait(r_waiting, timeout=2.0)
+            info(f"Got {len(r_finished)} results to posprocess. Still waiting for {len(r_waiting)}...")
 
         info("Min total dose = %f, Max total dose = %f" % (numpy.min(self.total_doses), numpy.max(self.total_doses)))
         saveToVTI(self.rass_data.output("beamlet_total_for_beam_%d" % self.conf_data["beam_number"]), self.total_doses, self.spacing, self.n, self.orig)
 
         os.chdir(oldWorkingDirectory)
         return self.beamlets_doses.copy()
-
 
 
     def getApproximatedCT(self, config_file=None, v2Drow=None, voxels=None, options=None, ctfiles=None):
@@ -638,11 +576,8 @@ class VMC:
         self.nbatch = conf['nbatch'] if 'nbatch' in conf else "10"
         self.delete_doses_file_after = conf['delete_doses_file_after'] if 'delete_doses_file_after' in conf else True
         self.delete_vmc_file_after = conf['delete_vmc_file_after'] if 'delete_vmc_file_after' in conf else True
-        self.ppservers = tuple(conf["ppservers"].split(",")) if "ppservers" in conf and conf["ppservers"] is not None else ()
-        self.ppsecret = str(conf["ppsecret"]) if "ppsecret" in conf and conf["ppsecret"] is not None else "KLARABELLA"
         self.doses_dos_path = conf["doses_dos_path"] if "doses_dos_path" in conf and conf["doses_dos_path"] is not None else self.rass_data.processing()
         self.cluster_config_file = conf["cluster_config_file"] if "cluster_config_file" in conf and conf["cluster_config_file"] is not None else None
-        self.pportion = conf["pportion"] if "pportion" in conf and conf["pportion"] is not None else 1
 
         print("beam_no = %d" % self.beam_no)
 
