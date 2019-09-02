@@ -19,6 +19,7 @@ from ct import CTVolumeDataReader
 from volumedata import VolumeData
 from dicomutils import debug, error, warning, info
 
+
 DEBUG_MAX_BEAMLETS_KEY = "debug_max_beamlets"
 
 def write_beamlet(beamlet, filename, opt):
@@ -101,50 +102,47 @@ def read_doses(filename):
     f.close()
     return doses
 
+def ala(x,y):
+    return x+y
+
 @ray.remote
 def calculate_single_beamlet(beamlets, opt):
-    print(f"beamlets: {beamlets}")
-    import sys
-    #sys.path.append("/doses-nfs/dicomvis")
-    #sys.path.append("/doses-nfs/dicomvis/dicomvis")
-    #sys.path.append("/doses-nfs/vmc++")
-    #print(sys.path)
     res = {"beamlets": [],
            "sum_of_beamlet_doses_filename": None}
     try:
         condInterestingVoxels = read_matrix(opt["interesting_voxels"])
         dose_tolerance_min = float(opt["dose_tolerance_min"])
         beam_no = opt["beam_no"]
-        sum_of_beamlet_doses = None
+        #sum_of_beamlet_doses = None
         hostname = socket.gethostname()
-        if "cluster" in opt["processing"]:
-            f_node_config = open(opt["cluster_config_file"])
-            node_processing_folder = f_node_config.readline().rstrip()
-            f_node_config.close()
-        else:
-            node_processing_folder = opt["processing"]
+
+        import tempfile
+        # node_processing_folder = opt["processing"]
+        node_processing_folder = tempfile.mkdtemp()
+        print("Using node processing folder: %s" % node_processing_folder)
 
         first_idx = None
         last_idx = None
         for beamlet in beamlets:
-            print(f"beamlet: {beamlet}")
+            print(f"Processing beamlet no: {beamlet}")
             idx = beamlet["idx"]
+            print(f"Beamlet idx is: {idx}")
 
             # --------------------- OBLICZ UZYWAJAC VNC ----------------------------------------------------
-            vmc_beamlet_spec_filename = "%s/beamlet_%s.vmc" % (opt["vmc_runs"], idx)
+            vmc_beamlet_spec_filename = "%s/beamlet_%s.vmc" % (node_processing_folder, idx)
             vmc_beamlet_spec_name = "beamlet_%s" % idx
             write_beamlet(beamlet, vmc_beamlet_spec_filename, opt)
 
             if "ncpu" in opt and opt["ncpu"] > 1:
-                print("Calling in parallel: %s/vmc_wrapper %s %s %s %s %s" % (opt["vmc_home"], opt["vmc_home"], opt["vmc_runs"], opt["xvmc_dir"], "%s/bin/vmc_Linux.exe" % opt["vmc_home"], vmc_beamlet_spec_name))
-                p = subprocess.Popen(["%s/vmc_wrapper" % opt["vmc_home"], opt["vmc_home"], opt["vmc_runs"], opt["xvmc_dir"], "%s/bin/vmc_Linux.exe" % opt["vmc_home"], vmc_beamlet_spec_name], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                print("Calling in parallel: %s/vmc_wrapper %s %s %s %s %s" % (opt["vmc_home"], opt["vmc_home"], node_processing_folder, opt["xvmc_dir"], "%s/bin/vmc_Linux.exe" % opt["vmc_home"], vmc_beamlet_spec_name))
+                p = subprocess.Popen(["%s/vmc_wrapper" % opt["vmc_home"], opt["vmc_home"], node_processing_folder, opt["xvmc_dir"], "%s/bin/vmc_Linux.exe" % opt["vmc_home"], vmc_beamlet_spec_name], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 p.wait()
             else:
-                info("Calling sequential: %s/vmc_wrapper %s %s %s %s %s" % (opt["vmc_home"], opt["vmc_home"], opt["vmc_runs"], opt["xvmc_dir"], "%s/bin/vmc_Linux.exe" % opt["vmc_home"], vmc_beamlet_spec_name))
-                p = subprocess.Popen(["%s/vmc_wrapper" % opt["vmc_home"], opt["vmc_home"], opt["vmc_runs"], opt["xvmc_dir"], "%s/bin/vmc_Linux.exe" % opt["vmc_home"], vmc_beamlet_spec_name])
+                info("Calling sequential: %s/vmc_wrapper %s %s %s %s %s" % (opt["vmc_home"], opt["vmc_home"], node_processing_folder, opt["xvmc_dir"], "%s/bin/vmc_Linux.exe" % opt["vmc_home"], vmc_beamlet_spec_name))
+                p = subprocess.Popen(["%s/vmc_wrapper" % opt["vmc_home"], opt["vmc_home"], node_processing_folder, opt["xvmc_dir"], "%s/bin/vmc_Linux.exe" % opt["vmc_home"], vmc_beamlet_spec_name])
                 p.wait()
 
-            doses_filename = "%s/%s_phantom.dos" % (opt["vmc_runs"], vmc_beamlet_spec_name)
+            doses_filename = "%s/%s_phantom.dos" % (node_processing_folder, vmc_beamlet_spec_name)
 
             beamlet_doses = read_doses(doses_filename)
             # --------------------------------------------------------------------------------------------
@@ -157,11 +155,11 @@ def calculate_single_beamlet(beamlets, opt):
 
             if beamlet_doses is not None:
                 last_idx = idx
-                if sum_of_beamlet_doses is None:
-                    first_idx = idx
-                    sum_of_beamlet_doses = beamlet_doses
-                else:
-                    sum_of_beamlet_doses += beamlet_doses
+                #if sum_of_beamlet_doses is None:
+                #    first_idx = idx
+                #    sum_of_beamlet_doses = beamlet_doses
+                #else:
+                #    sum_of_beamlet_doses += beamlet_doses
 
                 if condInterestingVoxels is not None:
                     ####################################################################################################
@@ -178,18 +176,16 @@ def calculate_single_beamlet(beamlets, opt):
                     mdoses[:, 0] = vindexes
                     mdoses[:, 1] = vdoses
 
-                    doses_map_filename = ("%s/beam_%s_%d.mdoses" % (node_processing_folder, idx, beam_no))
-                    save_matrix(mdoses, doses_map_filename)
-                    beamlet["doses_map_filename"] = doses_map_filename
+                    beamlet["doses_map"] = mdoses
             else:
-                error("ERROR! beamlet_doses == None!")
+                print("ERROR! beamlet_doses == None!")
 
             res['beamlets'].append(beamlet)
 
-        if sum_of_beamlet_doses is not None:
-            sum_of_beamlet_doses_filename = ("%s/sum_beamlets_%s-%s_%d.mdoses" % (node_processing_folder, first_idx, last_idx, beam_no))
-            save_matrix(sum_of_beamlet_doses, sum_of_beamlet_doses_filename)
-            res["sum_of_beamlet_doses_filename"] = sum_of_beamlet_doses_filename
+        #if sum_of_beamlet_doses is not None:
+        #    sum_of_beamlet_doses_filename = ("%s/sum_beamlets_%s-%s_%d.mdoses" % (node_processing_folder, first_idx, last_idx, beam_no))
+        #    save_matrix(sum_of_beamlet_doses, sum_of_beamlet_doses_filename)
+        #    res["sum_of_beamlet_doses_filename"] = sum_of_beamlet_doses_filename
 
         return res
     except:
@@ -333,24 +329,27 @@ class VMC:
 
     def postprocess(self, response):
         start = time.time()
-        sum_of_beamlet_doses_filename = response["sum_of_beamlet_doses_filename"]
+        #sum_of_beamlet_doses_filename = response["sum_of_beamlet_doses_filename"]
 
-        info("Starting postprocessing of sum_of_beamlet_doses: %s" % sum_of_beamlet_doses_filename)
-        sum_of_beamlet_doses = read_matrix(sum_of_beamlet_doses_filename)
-        if sum_of_beamlet_doses is not None:
-            self.lock.acquire()
-            try:
-                self.total_doses += sum_of_beamlet_doses
-            finally:
-                self.lock.release()
-        os.remove(sum_of_beamlet_doses_filename)
+        #info("Starting postprocessing of sum_of_beamlet_doses: %s" % sum_of_beamlet_doses_filename)
+        #sum_of_beamlet_doses = read_matrix(sum_of_beamlet_doses_filename)
+        #if sum_of_beamlet_doses is not None:
+        #    self.lock.acquire()
+        #    try:
+        #        self.total_doses += sum_of_beamlet_doses
+        #    finally:
+        #        self.lock.release()
+        #os.remove(sum_of_beamlet_doses_filename)
 
         for beamlet in response['beamlets']:
             beamlet_idx = beamlet['idx']
             info("Starting postprocessing of beamlet [%d]" % beamlet_idx)
-            mdoses = read_matrix(beamlet["doses_map_filename"])
+            #mdoses = read_matrix(beamlet["doses_map_filename"])
+            mdoses = beamlet["doses_map"]
             info("Size of interesting doses for %s is: %d" % (beamlet_idx, mdoses.shape[0]))
-            os.remove(beamlet["doses_map_filename"])
+            #os.remove(beamlet["doses_map_filename"])
+
+            self.total_doses[mdoses[:,0].astype(int)] = self.total_doses[mdoses[:,0].astype(int)] + mdoses[:,1]
 
             self.lock.acquire()
             try:
@@ -361,7 +360,7 @@ class VMC:
                 self.lock.release()
 
         end = time.time()
-        info("Postprocessing time: %s s (%s)" % (end - start, sum_of_beamlet_doses_filename))
+        info("Postprocessing time: %s s" % (end - start))
 
 
     def run(self, config_file=None, v2Drow=None, voxels=None, options=None, ctfiles=None):
@@ -392,9 +391,7 @@ class VMC:
             info("Taking energy spectrum from input folder: %s, to file: %s" % (spectrum_in, spectrum_dest))
             shutil.copy(spectrum_in, spectrum_dest)
 
-        if not os.path.isdir(self.vmc_runs):
-            info("Created new 'runs' folder: %s" % (self.vmc_runs))
-            os.mkdir(self.vmc_runs)
+        
 
         debug("Size of v2Drow = %d" % v2Drow.shape)
         self.condInterestingVoxels = (v2Drow >= 0)
@@ -432,7 +429,9 @@ class VMC:
 
         # ray.init(redis_address="10.42.2.78:59999")
         #ray.init(redis_address="10.0.2.15:59999")
-        ray.init(redis_address=options["ray_redis_address"])
+        #ray.init(redis_address=options["ray_redis_address"])        
+        #ray.init(redis_address="172.17.0.2:59422")
+
         #beamlets = []
         #for beamlet in self.conf_data['beamlets']:
         #    beamlets.append(beamlet)
@@ -446,6 +445,8 @@ class VMC:
         #if self.ncpu > 1:
         #    jobServer.wait()
         #    jobServer.destroy()
+
+        #calculate_single_beamlet(None,opt)
 
         bb = []
         imax = 0
@@ -464,7 +465,7 @@ class VMC:
         for r in rs:
             self.postprocess(r)
 
-        ray.shutdown()
+        #ray.ray.shutdown()
 
         info("Min total dose = %f, Max total dose = %f" % (numpy.min(self.total_doses), numpy.max(self.total_doses)))
         saveToVTI(self.rass_data.output("beamlet_total_for_beam_%d" % self.conf_data["beam_number"]), self.total_doses, self.spacing, self.n, self.orig)

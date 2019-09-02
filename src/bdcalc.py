@@ -9,8 +9,8 @@ import json
 import numpy as np
 import time
 import struct
-import vmc
 import dicomutils
+import ray
 from beamlets import Beamlets
 from contours import NoRSFileException
 from sys import argv
@@ -29,6 +29,9 @@ makeControlData = False
 SCALE = 0.1
 HIST_PTS = 50
 
+
+ray.init(ignore_reinit_error=True)
+import vmc
 
 def save_beam_doses(fname, beam_doses):
     """
