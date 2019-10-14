@@ -130,6 +130,7 @@ def calculate_single_beamlet(beamlets, opt):
                 vmc_beamlet_spec_filename = "%s/beamlet_%s.vmc" % (node_processing_folder, idx)
                 vmc_beamlet_spec_name = "beamlet_%s" % idx
                 write_beamlet(beamlet, vmc_beamlet_spec_filename, opt)
+                write_beamlet(beamlet, "/tmp/akuku.vmc", opt)
 
                 if "ncpu" in opt and opt["ncpu"] > 1:
                     print("Calling in parallel: %s/vmc_wrapper %s %s %s %s %s" % (opt["vmc_home"], opt["vmc_home"], node_processing_folder, opt["xvmc_dir"], "%s/bin/vmc_Linux.exe" % opt["vmc_home"], vmc_beamlet_spec_name))
@@ -160,11 +161,12 @@ def calculate_single_beamlet(beamlets, opt):
                         # Wynik zapisz w macierzy nwierszy na dwie kolumny. Pierwsza kolumna to indeks voxela, druga dawka
                         ####################################################################################################
                         maxDoseThisBeamlet = numpy.max(beamlet_doses)
-                        # print "Wycinam tylko voksele, w ktorych dawka jest wieksza od: %f (%f%%)" %
-                        # (maxDoseThisBeamlet * dose_tolerance_min, dose_tolerance_min)
+                        print("Wycinam tylko voksele, w ktorych dawka jest wieksza od: %f (%f%%)" % (maxDoseThisBeamlet * dose_tolerance_min, dose_tolerance_min))
+                        print(f"Max dose in beamlet_doses={numpy.max(beamlet_doses)}")
                         cond = (beamlet_doses > (maxDoseThisBeamlet * dose_tolerance_min)) & (condInterestingVoxels)
                         vdoses = beamlet_doses[cond]
                         vindexes = numpy.where(cond)[0]  # zwraca indeksy pasujących
+                        print(f"Max dose in vdoses={numpy.max(vdoses)}")
                         mdoses = numpy.zeros((len(vdoses), 2), dtype=numpy.float32)
                         mdoses[:, 0] = vindexes
                         mdoses[:, 1] = vdoses
@@ -319,6 +321,7 @@ class VMC:
             mdoses = beamlet["doses_map"]
             info("Size of interesting doses for %s is: %d" % (beamlet_idx, mdoses.shape[0]))
 
+            print(f"max mdoses = {numpy.max(mdoses[:,1])}")
             self.total_doses[mdoses[:,0].astype(int)] = self.total_doses[mdoses[:,0].astype(int)] + mdoses[:,1]
 
             self.lock.acquire()
@@ -372,7 +375,7 @@ class VMC:
 
 
         ######################################################################################################
-        #   Tutaj tworzę transformowany obraz CT. Obraz musi byc rozszerzony co najmniej do konturów Patient
+        # Tutaj tworzę transformowany obraz CT. Obraz musi byc rozszerzony co najmniej do konturów Patient
         # outline, albo skin albo body.
         ######################################################################################################
         self.prepare_ct_file(v2Drow)
@@ -405,6 +408,10 @@ class VMC:
             info("Waiting for results...")
             r_finished, r_waiting = ray.wait(r_waiting, timeout=2.0)
             info(f"Got {len(r_finished)} results to posprocess. Still waiting for {len(r_waiting)}...")
+
+        for r in r_finished:
+            info(f"Posprocesing...")
+            self.postprocess(ray.get(r))
 
         info("Min total dose = %f, Max total dose = %f" % (numpy.min(self.total_doses), numpy.max(self.total_doses)))
         saveToVTI(self.rass_data.output("beamlet_total_for_beam_%d" % self.conf_data["beam_number"]), self.total_doses, self.spacing, self.n, self.orig)

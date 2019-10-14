@@ -543,6 +543,7 @@ if __name__ == '__main__':
         for i in range(1, len(bns)):
             totalDoses += beamDoses[bns[i]]
 
+    totalDoses = np.array(totalDoses, dtype=np.float32)
     info("Read doses for %d beams" % len(beamDoses))
 
     minDose = np.min(totalDoses)
@@ -730,6 +731,7 @@ if __name__ == '__main__':
             beamTotalDoses = vmcCalculator.total_doses
             save_beam_doses(beam_doses_cachefile, beamTotalDoses)
 
+        mcDoses += np.reshape(beamTotalDoses,[imax, jmax, kmax])
         mcDosesVMC += beamTotalDoses
 
         if options["debug_beam_doses"]:
@@ -741,6 +743,7 @@ if __name__ == '__main__':
     print("max plan_grid_ct.shape {}".format(plan_grid_ct.shape))
     write_rois(rass_data.output('v_%s.txt' % treatment_name, subfolder="%s" % treatment_name), totalDoses, roi_marks, kmax, jmax, imax, plan_grid_ct, v2Drow)
 
+    vmc.saveToVTI(rass_data.output("mc_doses_test"), np.reshape(mcDoses, np.prod([imax, jmax, kmax])), [dx, dy, dz], [kmax, jmax, imax], [xbase, ybase, zbase])
 
     #################################
     # Obliczam scaling coefficient
@@ -755,6 +758,8 @@ if __name__ == '__main__':
             # info("Fluencja: %f dla btidx = %d" % (float(beamlets.fluence[btidx]), btidx))
             create_pareto_vmc_c.postprocess_fluence_for_scaling(beamlets_doses[btidx], float(beamlets.fluence[btidx]),
                                                                 mcDosesForScaling, kmax, jmax, imax)
+
+    vmc.saveToVTI(rass_data.output("mc_doses_for_scalingg"), np.reshape(mcDosesForScaling, np.prod([imax, jmax, kmax])), [dx, dy, dz], [kmax, jmax, imax], [xbase, ybase, zbase])    
 
     if options["scale_algorithm"].lower() == "total_avg_max":
         if not options["override_dicom_plan_grid"]:
@@ -811,11 +816,25 @@ if __name__ == '__main__':
             if options["out_mc_doses_txt"]:
                 f.close()
     else:
-        mcDosesScalingFactors = np.zeros(totalDoses.shape, dtype=np.float32)
-        mcDosesScalingFactors[mcDosesForScaling > 0] = np.divide(totalDoses[mcDosesForScaling > 0], mcDosesForScaling[mcDosesForScaling > 0])
+        mcDoses = np.zeros(totalDoses.shape, dtype=np.float32)
 
-        vmc.saveToVTI(rass_data.output("mcDosesScalingFactors"), np.reshape(mcDosesScalingFactors, np.prod([kmax, jmax, imax])),
-                      [dx, dy, dz], [kmax, jmax, imax], [xbase, ybase, zbase])
+        mcDosesScalingFactors = np.zeros(totalDoses.shape, dtype=np.float32)
+        mcDosesScalingFactors[mcDosesForScaling > 1e-8] = np.divide(totalDoses[mcDosesForScaling > 1e-8], mcDosesForScaling[mcDosesForScaling > 1e-8])
+
+        mcDosesScalingFactorsFlatSorted = np.sort(np.reshape(mcDosesScalingFactors, np.prod(mcDosesScalingFactors.shape)))
+        mcDosesScalingFactorsFlatSorted = mcDosesScalingFactorsFlatSorted[mcDosesScalingFactorsFlatSorted > 1e-8]
+        minScale = mcDosesScalingFactorsFlatSorted[ mcDosesScalingFactorsFlatSorted.shape[0]//4 ] # take value from 1/4 of the sorted set
+        maxScale = mcDosesScalingFactorsFlatSorted[ 3*mcDosesScalingFactorsFlatSorted.shape[0]//4 ] # take value at 3/4 of the sorted set
+        info("Using minScale = %f, maxscale %f" % (minScale, maxScale))
+        mcDosesScalingFactors[ (mcDosesScalingFactors > 0) & (mcDosesScalingFactors < minScale) ] = minScale
+        mcDosesScalingFactors[ (mcDosesScalingFactors > 0) & (mcDosesScalingFactors > maxScale) ] = maxScale
+
+
+
+        vmc.saveToVTI(rass_data.output("total_doses_before_scaling"), np.reshape(totalDoses, np.prod([imax, jmax, kmax])), [dx, dy, dz], [kmax, jmax, imax], [xbase, ybase, zbase])
+        vmc.saveToVTI(rass_data.output("mc_doses_for_scaling_before_scaling"), np.reshape(mcDosesForScaling, np.prod([imax, jmax, kmax])), [dx, dy, dz], [kmax, jmax, imax], [xbase, ybase, zbase])
+        vmc.saveToVTI(rass_data.output("mcDosesScalingFactors"), np.reshape(mcDosesScalingFactors, np.prod([kmax, jmax, imax])),[dx, dy, dz], [kmax, jmax, imax], [xbase, ybase, zbase])
+
 
         ###############################################################################################################
         # Skaluję i zapisuję dawki do plików dla poszczególnych wiązek na podstawie skal związanych z każdym wokselem.
@@ -826,21 +845,30 @@ if __name__ == '__main__':
 
             beamlets_doses_cachefilename = rass_data.processing("%s_%d.beamlets_doses_map_cache" % (treatment_name, beamNo))
             beamlets_doses = read_beamlets_doses_map(beamlets_doses_cachefilename)
+            info("Read beamlet doses from cache file %s" % beamlets_doses_cachefilename)
 
             if options["out_mc_doses_txt"]:
                 info('Writing doses for bundle %d' % beamNo)
                 f = open(rass_data.output('d_%s_%d.txt' % (treatment_name, beamNo), subfolder="%s" % treatment_name),
                          'w')
                 f.write('%d\n' % sum([beamlets_doses[k].shape[0] for k in beamlets_doses.keys()]))
+            else:
+                f = None
 
+            info("Starting postprocessing beamlets...")
             for btidx in sorted(beamlets_doses.keys()):
                 create_pareto_vmc_c.postprocess_fluence_individual(mcDosesScalingFactors, beamlets_doses[btidx],
                                                         float(beamlets.fluence[btidx]), mcDoses, mcDosesFluence,
                                                         kmax, jmax, imax, options["out_mc_doses_txt"],
                                                         f, v2Drow, beamlets.active[btidx])
 
+            info("Finished posprocessing beamlets from file %s" % beamlets_doses_cachefilename)
+
             if options["out_mc_doses_txt"]:
                 f.close()
+
+        if options["out_mc_doses"]:
+            vmc.saveToVTI(rass_data.output("mc_doses_tuz_after"), np.reshape(mcDoses, np.prod([imax, jmax, kmax])), [dx, dy, dz], [kmax, jmax, imax], [xbase, ybase, zbase])
 
     ##########################################################
     # Print total doses statistics from Monte Carlo

@@ -71,3 +71,21 @@ Budowanie obrazu (najlepiej będąc w główny katalogu) - warto teraz dodać bu
 docker build -t bdcalc:0.1 -f docker/Dockerfile .
 ```
 
+## Podpowiedzi dla początkujących użytkowników ray:
+
+1. Dzielenie na większe kawałki (nakład na komunikację między-procesową, przesyłanie danych itp.)
+2. Czekanie na najkrótsze zadanie i automatyczna jego obsługa (```ray.wait()```)
+3. ray ```autoscaler``` - narzędzie umożliwiające automatyczne uruchamianie kontenerów dockera na wskazanych węzłach
+
+https://rise.cs.berkeley.edu/blog/ray-tips-for-first-time-users/
+
+
+
+## Aktualizacja węzłów ray-x
+
+```
+   46  sudo hostnamectl set-hostname ray-3
+   47  sudo vim /etc/cloud/cloud.cfg
+   54  scp ham-10:.ssh/id_rsa.pub .ssh/authorized_keys
+```
+

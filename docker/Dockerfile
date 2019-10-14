@@ -16,6 +16,7 @@ RUN apt-get update \
         libgl1-mesa-glx \
         iputils-ping \
         iproute2 \
+	gnuplot \
     && apt-get clean \
     && echo 'export PATH=/opt/conda/bin:$PATH' > /etc/profile.d/conda.sh \
     && wget \
@@ -37,11 +38,12 @@ RUN apt-get update \
 	pydicom
 
 ENV PATH "/opt/conda/bin:$PATH"
+ENV PYTHONPATH "/doses-nfs/sim/bdcalc/src:$PYTHONPATH"
 ENV LC_ALL "C.UTF-8"
 ENV LANG "C.UTF-8"
 
 WORKDIR bdcalc
-COPY ./src/*.py /bdcalc/
+# COPY ./src/*.py /bdcalc/
 COPY ./vmc_c/create_pareto_vmc_c.pyx /bdcalc/vmc_c/
 COPY ./vmc_c/setup.py /bdcalc/vmc_c/
 RUN cd /bdcalc/vmc_c \
