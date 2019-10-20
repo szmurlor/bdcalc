@@ -29,7 +29,6 @@ makeControlData = False
 SCALE = 0.1
 HIST_PTS = 50
 
-
 #ray.init(redis_address="10.42.2.78:59999")
 #ray.init(redis_address="10.0.2.15:59999")
 #ray.init(redis_address=options["ray_redis_address"])        
@@ -803,6 +802,7 @@ if __name__ == '__main__':
             beam_doses_cachefile = rass_data.processing("%s_%d.beam_doses_cache" % (treatment_name, beamNo))
             beamletTotalDoses = read_beam_doses(beam_doses_cachefile, totalDoses.shape)
 
+            f = None
             if options["out_mc_doses_txt"]:
                 info('Writing doses for bundle %d' % beamNo)
                 f = open(rass_data.output('d_%s_%d.txt' % (treatment_name, beamNo), subfolder="%s" % treatment_name), 'w')
