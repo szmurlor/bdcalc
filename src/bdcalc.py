@@ -347,6 +347,7 @@ def default_options():
         "ncase": 50000,                  # liczba próbek MC
         "nbatch": 10,                    # liczba iteracji MC
         "histograms": False,             # czy generować histogramy
+        "run_gnuplot": False,             # czy generować histogramy
         "use_cached_doses": False,            # Nie licz dawek, tylko postaraj się je wczytać z binarnych plików Cache
         "augment_planning_grid": False,  # augment planning grid to geometrically  cover all strutures from RS
         "water_phantom": False,          # zastosuj poprawkę do CT - fantom wodny
@@ -741,7 +742,8 @@ if __name__ == '__main__':
 
     print("max v2Drow {}".format(np.max(v2Drow)))
     print("max plan_grid_ct.shape {}".format(plan_grid_ct.shape))
-    write_rois(rass_data.output('v_%s.txt' % treatment_name, subfolder="%s" % treatment_name), totalDoses, roi_marks, kmax, jmax, imax, plan_grid_ct, v2Drow)
+    if options["out_rois"]:
+        write_rois(rass_data.output('v_%s.txt' % treatment_name, subfolder="%s" % treatment_name), totalDoses, roi_marks, kmax, jmax, imax, plan_grid_ct, v2Drow)
 
     vmc.saveToVTI(rass_data.output("mc_doses_test"), np.reshape(mcDoses, np.prod([imax, jmax, kmax])), [dx, dy, dz], [kmax, jmax, imax], [xbase, ybase, zbase])
 
@@ -915,47 +917,25 @@ if __name__ == '__main__':
     
     if options["histograms"]:
 
-        info("Generating histograms for original (ECLIPSE) total doses...")
-        png_fname = '%s_histogram_ecplise_PlanRT.png' % treatment_name
-        f = open(rass_data.output('histograms.gpt', subfolder="hist"), 'w')
-        f.write('set grid\nset style data lp\nset xlabel \'Dose [cGy]\'\n'
-                'set ylabel \'%% of volume\'\nset yrange [0:110]\nset term png size 1024,768\nset output "%s"\nplot ' % png_fname)
-        for r in range(len(myROIs)):
-            info("+----- %s" % myROIs[r].name)
-            minD, avgD, maxD = histogram(totalDoses, roi_marks, 2 ** r, rass_data.output("%s.hist" % myROIs[r].name, subfolder="hist"), 100. * doseScaling, dv, HIST_PTS)
-            info('Voxel doses in %20s: min=%12g avg=%12g max=%12g [cGy]' % (
-                myROIs[r].name, 100. * minD * doseScaling, 100. * avgD * doseScaling, 100. * maxD * doseScaling))
-            if maxD > 0:
-                f.write('\'' + myROIs[r].name + '.hist\', ')
-        f.write('\n#set term x11 size 1024,768\n#replot\n#pause 120\n')
-        f.close()
-        call(["gnuplot", 'histograms.gpt'], cwd=rass_data.output('', subfolder="hist"))
+        def generate_gnuplot_histograms(name, subfolder, doses_to_plot):
+            info(f"Generating histograms for {name}...")
+            png_fname = '%s_histogram_%s.png' % (treatment_name, name)
+            f = open(rass_data.output('histograms.gpt', subfolder=subfolder), 'w')
+            f.write('set grid\nset style data lp\nset xlabel \'Dose [cGy]\'\n'
+                    'set ylabel \'%% of volume\'\nset yrange [0:110]\nset term png size 1024,768\nset output "%s"\nplot ' % png_fname)
+            for r in range(len(myROIs)):
+                info("+----- %s" % myROIs[r].name)
+                minD, avgD, maxD = histogram(doses_to_plot, roi_marks, 2 ** r, rass_data.output("%s.hist" % myROIs[r].name, subfolder=subfolder), 100. * doseScaling, dv, HIST_PTS)
+                info('Voxel doses in %20s: min=%12g avg=%12g max=%12g [cGy]' % (
+                    myROIs[r].name, 100. * minD * doseScaling, 100. * avgD * doseScaling, 100. * maxD * doseScaling))
+                if maxD > 0:
+                    f.write('\'' + myROIs[r].name + '.hist\', ')
+            f.write('\n#set term x11 size 1024,768\n#replot\n#pause 120\n')
+            f.close()
 
-        info("Generating histograms for MC (Monte Carlo) total doses...")
-        png_fname = '%s_histogram_MC_calculated_Fluence_1.png' % treatment_name
-        f = open(rass_data.output('red_histograms.gpt', subfolder="red"), 'w')
-        f.write('set grid\nset style data lp\nset xlabel \'Dose [cGy]\'\n'
-                'set ylabel \'%% of volume\'\nset yrange [0:110]\nset term png size 1024,768\nset output "%s"\nplot ' % png_fname)
-        for r in range(len(myROIs)):
-            minD, avgD, maxD = histogram(mcDoses, roi_marks, 2**r, rass_data.output("red_%s.hist" % myROIs[r].name, subfolder="red"), 100.*doseScaling, dv, HIST_PTS)
-            info('Voxel doses in %20s: min=%12g avg=%12g max=%12g [cGy]' % (myROIs[r].name, 100.*minD*doseScaling, 100.*avgD*doseScaling, 100.*maxD*doseScaling))
-            if maxD > 0:
-                f.write('\'red_'+myROIs[r].name + '.hist\', ')
-        f.write('\n#set term x11 size 1024,768\n#replot\n#pause 120\n')
-        f.close()
-        call(["gnuplot", 'red_histograms.gpt'], cwd=rass_data.output('', subfolder="red"))
+            if options["run_gnuplot"]:
+                call(["gnuplot", 'histograms.gpt'], cwd=rass_data.output('', subfolder=subfolder))
 
-        info("Generating histograms for MC (Monte Carlo) total doses fluenced...")
-        png_fname = '%s_histogram_MC_calculated_PlanRT.png' % treatment_name
-        f = open(rass_data.output('fluence_histograms.gpt', subfolder="fluence"), 'w')
-        f.write('set grid\nset style data lp\nset xlabel \'Dose [cGy]\'\n'
-                'set ylabel \'%% of volume\'\nset yrange [0:110]\nset term png size 1024,768\nset output "%s"\nplot ' % png_fname)
-        for r in range(len(myROIs)):
-            info(rass_data.output("fluence_%s.hist" % myROIs[r].name, subfolder="fluence"))
-            minD, avgD, maxD = histogram(mcDosesFluence, roi_marks, 2**r, rass_data.output("fluence_%s.hist" % myROIs[r].name, subfolder="fluence"), 100.*doseScaling, dv, HIST_PTS)
-            info('Voxel doses in %20s: min=%12g avg=%12g max=%12g [cGy]' % (myROIs[r].name, 100.*minD*doseScaling, 100.*avgD*doseScaling, 100.*maxD*doseScaling))
-            if maxD > 0:
-                f.write('\'fluence_'+myROIs[r].name + '.hist\', ')
-        f.write('\n#set term x11 size 1024,768\n#replot\n#pause 120\n')
-        f.close()
-        call(["gnuplot", 'fluence_histograms.gpt'], cwd=rass_data.output('', subfolder="fluence"))
+        generate_gnuplot_histograms("ecplise_PlanRT", "hist", totalDoses)
+        generate_gnuplot_histograms("MC_calculated_with_Fluence_1", "red", mcDoses)
+        generate_gnuplot_histograms("MC_calculated_with_PlanRT", "fluence", mcDosesFluence)
