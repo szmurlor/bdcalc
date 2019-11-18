@@ -132,14 +132,14 @@ def calculate_single_beamlet(beamlets, opt):
                 write_beamlet(beamlet, vmc_beamlet_spec_filename, opt)
                 write_beamlet(beamlet, "/tmp/akuku.vmc", opt)
 
-                if "ncpu" in opt and opt["ncpu"] > 1:
-                    print("Calling in parallel: %s/vmc_wrapper %s %s %s %s %s" % (opt["vmc_home"], opt["vmc_home"], node_processing_folder, opt["xvmc_dir"], "%s/bin/vmc_Linux.exe" % opt["vmc_home"], vmc_beamlet_spec_name))
-                    p = subprocess.Popen(["%s/vmc_wrapper" % opt["vmc_home"], opt["vmc_home"], node_processing_folder, opt["xvmc_dir"], "%s/bin/vmc_Linux.exe" % opt["vmc_home"], vmc_beamlet_spec_name], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                    p.wait()
-                else:
-                    info("Calling sequential: %s/vmc_wrapper %s %s %s %s %s" % (opt["vmc_home"], opt["vmc_home"], node_processing_folder, opt["xvmc_dir"], "%s/bin/vmc_Linux.exe" % opt["vmc_home"], vmc_beamlet_spec_name))
-                    p = subprocess.Popen(["%s/vmc_wrapper" % opt["vmc_home"], opt["vmc_home"], node_processing_folder, opt["xvmc_dir"], "%s/bin/vmc_Linux.exe" % opt["vmc_home"], vmc_beamlet_spec_name])
-                    p.wait()
+                #if "ncpu" in opt and opt["ncpu"] > 1:
+                print("Calling in parallel: %s/vmc_wrapper %s %s %s %s %s" % (opt["vmc_home"], opt["vmc_home"], node_processing_folder, opt["xvmc_dir"], "%s/bin/vmc_Linux.exe" % opt["vmc_home"], vmc_beamlet_spec_name))
+                p = subprocess.Popen(["%s/vmc_wrapper" % opt["vmc_home"], opt["vmc_home"], node_processing_folder, opt["xvmc_dir"], "%s/bin/vmc_Linux.exe" % opt["vmc_home"], vmc_beamlet_spec_name], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                p.wait()
+                #else:
+                #    print("Calling sequential: %s/vmc_wrapper %s %s %s %s %s" % (opt["vmc_home"], opt["vmc_home"], node_processing_folder, opt["xvmc_dir"], "%s/bin/vmc_Linux.exe" % opt["vmc_home"], vmc_beamlet_spec_name))
+                #    p = subprocess.Popen(["%s/vmc_wrapper" % opt["vmc_home"], opt["vmc_home"], node_processing_folder, opt["xvmc_dir"], "%s/bin/vmc_Linux.exe" % opt["vmc_home"], vmc_beamlet_spec_name])
+                #    p.wait()
 
                 doses_filename = "%s/%s_phantom.dos" % (node_processing_folder, vmc_beamlet_spec_name)
 
