@@ -61,6 +61,16 @@ def listDirectory(directory):
 
 
 def findContours(dataset, number):
+    """
+    input:
+        dataset - dictionary representing dicom structure file 
+        number - filter out by the ROI number
+
+    Returns:
+        A list of contours (unordered - same order as in a dicom file)
+        Each contour is a np.float NumPy array.
+        
+    """
     contours = []
     if hasattr(dataset, 'ROIContourSequence'):
         for roi in dataset.ROIContourSequence:

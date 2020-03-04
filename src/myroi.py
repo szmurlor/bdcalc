@@ -57,7 +57,7 @@ class MyRoi:
 		self.xmax = self.xmin
 		self.ymin = contours[0][0][1]
 		self.ymax = self.ymin
-		sc = sorted(contours, key=lambda c: c[0][2])
+		sc = sorted(contours, key=lambda c: c[0][2]) # sorting by the z
 		dz = sc[1][0][2] - sc[0][0][2]
 		for i in range(len(sc)):  # reorder contours if the are not counter-clockwise
 			c = sc[i]
@@ -110,17 +110,31 @@ class MyRoi:
 	def mark(self, xb, yb, dx, dy, kmax, jmax, imax, z, marks, sid, debug=False, ctgriddata=None):
 		# print 'Marking %s by %d : [%g:%g]x[%g:%g]x[%g:%g]' % ( self.name, sid, self.xmin, self.xmax, self.ymin, self.ymax, self.z[0], self.z[self.n-1] )
 		fact = 0.1  # security factor
-		print("%s" % list(ctgriddata))
 		if ctgriddata is not None:
+			print("%s" % list(ctgriddata))
 			(ctxb, ctyb, ctdx, ctdy, ctnx, ctny) = list(ctgriddata)
 		else:
 			(ctdx, ctdy) = (dx, dy)
 		dmin = fact * min(dx, dy, ctdx, ctdy)
 		toFill = set()
-		iprev = -1
+		iprev = -1 # used when the contours are coarser than the grid z-layers
 		if debug:
 			print('z in grid: <%g,%g>, z in ROI: <%g,%g>' % (z[0], z[-1], self.z[0], self.z[-1]))
+		last_z = None
+		do_mark = True
+		sid_to_check = sid
 		for l in range(0, self.n):
+			if (last_z is None) or (last_z != self.z[l]):
+				do_mark = True
+				sid_to_check = 0
+				sid_to_check_inverted = sid
+				last_z = self.z[l]
+			else:
+				# if new contour have the same z then clear marks for the holes
+				do_mark = False
+				sid_to_check = sid
+				sid_to_check_inverted = 0
+
 			i = int((self.z[l] - z[0]) / (z[1] - z[0]))
 			if debug:
 				print('i=%d' % i)
@@ -146,11 +160,21 @@ class MyRoi:
 					k = k if k < kmax else kmax - 1
 					j = int((vv[1] - yb) / dy)
 					j = j if j < jmax else jmax - 1
-					if marks[i][j][k] & sid == 0:
-						if iprev >= 0 and i - iprev > 1:
-							for ix in range(iprev + 1, i):
-								marks[ix][j][k] += sid
-						marks[i][j][k] += sid
+
+					if do_mark:
+						if marks[i][j][k] & sid == 0:
+							if iprev >= 0 and i - iprev > 1:
+								# fill skipped grid layers
+								for ix in range(iprev + 1, i):
+									marks[ix][j][k] += sid
+							marks[i][j][k] += sid
+					else:
+						if marks[i][j][k] & sid == sid:
+							if iprev >= 0 and i - iprev > 1:
+								# fill skipped grid layers
+								for ix in range(iprev + 1, i):
+									marks[ix][j][k] -= sid
+							marks[i][j][k] -= sid
 				# prepare starting point for the next segment of the current contour
 				vp = v
 			# calculate seeds for filler
@@ -178,23 +202,23 @@ class MyRoi:
 					k = k if k < kmax else kmax - 1
 					j = int((vv[1] - yb) / dy)
 					j = j if j < jmax else jmax - 1
-					if marks[i][j][k] & sid == sid:  # marks... & sid != 0
-						if dj > 0 and k > 0 and marks[i][j][k - 1] & sid == 0 and self.paths[l].contains_point(
+					if marks[i][j][k] & sid == sid_to_check_inverted:  # marks... & sid != 0
+						if dj > 0 and k > 0 and marks[i][j][k - 1] & sid == sid_to_check and self.paths[l].contains_point(
 								(xb + (k - 1) * dx, yb + j * dy + dy / 2)):
 							if debug:
 								print('v(%d,%d) seed at(%d,%d), marks=%d, sid=%d' % (k, j, k - 1, j, marks[i][j][k - 1], sid))
 							toFill.add((k - 1, j))
-						if dj < 0 and k < kmax - 1 and marks[i][j][k + 1] & sid == 0 and self.paths[l].contains_point(
+						if dj < 0 and k < kmax - 1 and marks[i][j][k + 1] & sid == sid_to_check and self.paths[l].contains_point(
 								(xb + (k + 1) * dx, yb + j * dy + dy / 2)):
 							if debug:
 								print('v(%d,%d) seed at(%d,%d), marks=%d, sid=%d' % (k, j, k + 1, j, marks[i][j][k + 1], sid))
 							toFill.add((k + 1, j))
-						if dk < 0 and j > 0 and marks[i][j - 1][k] & sid == 0 and self.paths[l].contains_point(
+						if dk < 0 and j > 0 and marks[i][j - 1][k] & sid == sid_to_check and self.paths[l].contains_point(
 								(xb + k * dx + dx / 2, yb + (j - 1) * dy)):
 							if debug:
 								print('v(%d,%d) seed at(%d,%d), marks=%d, sid=%d' % (k, j, k, j - 1, marks[i][j - 1][k], sid))
 							toFill.add((k, j - 1))
-						if dk > 0 and j < jmax - 1 and marks[i][j + 1][k] & sid == 0 and self.paths[l].contains_point(
+						if dk > 0 and j < jmax - 1 and marks[i][j + 1][k] & sid == sid_to_check and self.paths[l].contains_point(
 								(xb + k * dx + dx / 2, yb + (j + 1) * dy)):
 							if debug:
 								print('v(%d,%d) seed at(%d,%d), marks=%d, sid=%d' % (k, j, k, j + 1, marks[i][j + 1][k], sid))
@@ -208,19 +232,19 @@ class MyRoi:
 			if ns > 0:
 				ks = int(ks / ns)
 				js = int(js / ns)
-				if marks[i][js][ks] & sid == 0 and self.paths[l].contains_point(
+				if marks[i][js][ks] & sid == sid_to_check and self.paths[l].contains_point(
 						(xb + ks * dx + 0.5 * dx, yb + js * dy + 0.5 * dy)):
 					pass  # (ks,js) are ok
-				elif ks > 0 and marks[i][js][ks - 1] & sid == 0 and self.paths[l].contains_point(
+				elif ks > 0 and marks[i][js][ks - 1] & sid == sid_to_check and self.paths[l].contains_point(
 						(xb + (ks - 1) * dx + 0.5 * dx, yb + js * dy + 0.5 * dy)):
 					ks -= 1
-				elif ks < kmax - 1 and marks[i][js][ks + 1] & sid == 0 and self.paths[l].contains_point(
+				elif ks < kmax - 1 and marks[i][js][ks + 1] & sid == sid_to_check and self.paths[l].contains_point(
 						(xb + (ks + 1) * dx + 0.5 * dx, yb + js * dy + 0.5 * dy)):
 					ks += 1
 				elif js > 0 and marks[i][js - 1][ks] & sid == 0 and self.paths[l].contains_point(
 						(xb + ks * dx + 0.5 * dx, yb + (js - 1) * dy + 0.5 * dy)):
 					js -= 1
-				elif js < jmax - 1 and marks[i][js + 1][ks] & sid == 0 and self.paths[l].contains_point(
+				elif js < jmax - 1 and marks[i][js + 1][ks] & sid == sid_to_check and self.paths[l].contains_point(
 						(xb + ks * dx + 0.5 * dx, yb + (js + 1) * dy + 0.5 * dy)):
 					js += 1
 				else:
@@ -235,19 +259,28 @@ class MyRoi:
 			# flood of the i-th level:
 			while len(toFill) > 0:
 				(k, j) = toFill.pop()
-				if marks[i][j][k] & sid == sid:
-					continue
-				if iprev >= 0 and i - iprev > 1:
-					for ix in range(iprev + 1, i):
-						marks[ix][j][k] += sid
-				marks[i][j][k] += sid
-				if k - 1 >= 0 and marks[i][j][k - 1] & sid == 0:
+				if do_mark:
+					if marks[i][j][k] & sid == sid:
+						continue
+					if iprev >= 0 and i - iprev > 1:
+						for ix in range(iprev + 1, i):
+							marks[ix][j][k] += sid
+					marks[i][j][k] += sid
+				else:
+					if marks[i][j][k] & sid == 0:
+						continue
+					if iprev >= 0 and i - iprev > 1:
+						for ix in range(iprev + 1, i):
+							marks[ix][j][k] -= sid
+					marks[i][j][k] -= sid
+
+				if k - 1 >= 0 and marks[i][j][k - 1] & sid == sid_to_check:
 					toFill.add((k - 1, j))
-				if k + 1 < kmax and marks[i][j][k + 1] & sid == 0:
+				if k + 1 < kmax and marks[i][j][k + 1] & sid == sid_to_check:
 					toFill.add((k + 1, j))
-				if j - 1 >= 0 and marks[i][j - 1][k] & sid == 0:
+				if j - 1 >= 0 and marks[i][j - 1][k] & sid == sid_to_check:
 					toFill.add((k, j - 1))
-				if j + 1 < jmax and marks[i][j + 1][k] & sid == 0:
+				if j + 1 < jmax and marks[i][j + 1][k] & sid == sid_to_check:
 					toFill.add((k, j + 1))
 			iprev = i
 		self.countVoxels(marks, sid)
