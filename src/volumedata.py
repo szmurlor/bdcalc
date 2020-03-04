@@ -1,11 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from os import path
-from vtk import vtkMarchingCubes, vtkPolyDataNormals, vtkXMLImageDataReader, vtkXMLImageDataWriter
+from vtk import vtkXMLImageDataReader, vtkXMLImageDataWriter
 from vtk import vtkImageData, vtkShortArray, vtkIntArray, vtkFloatArray
 
-from surfacedata import SurfaceData
-from dicomutils import debug, warning
+from common import log
 
 
 class VolumeData(object):
@@ -15,7 +14,7 @@ class VolumeData(object):
 			sx, sy, sz = data.GetSpacing()
 			# print "spacing (%g,%g,%g), thickness=%g" % ( sx, sy, sz, thickness )
 			if thickness != None and thickness != sz:
-				warning("Thickness corrected: %g -> %g" % (sz, thickness))
+				log.warning("Thickness corrected: %g -> %g" % (sz, thickness))
 				data.SetSpacing([sx, sy, thickness])
 
 	def createGrid(self, spacing, dimensions, origin):
@@ -38,7 +37,7 @@ class VolumeData(object):
 		array.SetNumberOfComponents(1)
 		array.SetNumberOfTuples(n)
 
-		debug("Created an array with %d points" % n)
+		log.debug("Created an array with %d points" % n)
 		return array
 
 	def createIntegerArray(self, grid):
@@ -48,7 +47,7 @@ class VolumeData(object):
 		array.SetNumberOfComponents(1)
 		array.SetNumberOfTuples(n)
 
-		debug("Created an array with %d points" % n)
+		log.debug("Created an array with %d points" % n)
 		return array
 
 	def createFloatArray(self, grid):
@@ -82,37 +81,3 @@ class VolumeData(object):
 		except:
 			writer.SetInputData(self.data)
 		writer.Update()
-
-	def slice(self, z):
-		pass
-
-	def applyMarchingCubes(self, lower_threshold=0.0, upper_treshold=1.0):
-		iso = vtkMarchingCubes()
-		iso.SetInput(self.data)
-		iso.SetValue(lower_threshold, upper_treshold)
-		iso.Update()
-
-		normals = vtkPolyDataNormals()
-		normals.SetInput(iso.GetOutput())
-		normals.SetComputePointNormals(1)
-		normals.Update()
-
-		return SurfaceData(normals.GetOutput())
-
-	def applyPoissonReconstruction(self, depth=3):
-		surface = self.applyMarchingCubes()
-		reconstructed = surface.applyPoissonReconstruction(depth)
-		return reconstructed
-
-	def applyPointReconstruction(self):
-		surface = self.applyMarchingCubes()
-		reconstructed = surface.applyPointReconstruction()
-		return reconstructed
-
-	def applySmoothing(self, iterations=300):
-		surface = self.applyMarchingCubes()
-		smoothed = surface.applySmoothing(iterations)
-		return smoothed
-
-	def applyImageTreshold(self, treshold):
-		pass

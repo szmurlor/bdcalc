@@ -5,41 +5,48 @@ import pydicom
 import numpy as np
 from datetime import datetime
 
-ERROR_LEVEL = 0
-WARNING_LEVEL = 1
-INFO_LEVEL = 2
-DEBUG_LEVEL_LEVEL = 3
-DEBUG_LEVEL = 3
-TRACE_LEVEL = 4
+""" http://www.dicomlibrary.com/dicom/sop/ """
+CT_SOPClassUID = '1.2.840.10008.5.1.4.1.1.2'
+RTSSS_SOPClassUID = '1.2.840.10008.5.1.4.1.1.481.3'
+RT_DOSE_SOPClassUID = '1.2.840.10008.5.1.4.1.1.481.2'
+RT_PLAN_SOPClassUID = '1.2.840.10008.5.1.4.1.1.481.5'
+
+def listDirectory(directory):
+    files = []
+
+    for root, _, filenames in os.walk(directory):
+        for each in filenames:
+            filename, extension = os.path.splitext(each)
+            if not filename.startswith("."):
+                filepath = os.path.join(root, each)
+                files.append(filepath)
+
+    return files
 
 
-def debug(msg):
-    if (DEBUG_LEVEL >= DEBUG_LEVEL_LEVEL):
-        st = datetime.utcnow().strftime('%H:%M:%S.%f')[:-3]
-        print("([%d] %s): %s" % (DEBUG_LEVEL_LEVEL, st, msg))
+def find_ct_rs_rp_dicom(directory_name):
+    ct = []
+    doses = []
+    rs = None
+    rp = None
+    if os.path.isdir(directory_name):
+        files = listDirectory(directory_name)
 
+        for file in files:
+            d = pydicom.read_file(file)
+            if CT_SOPClassUID in d.SOPClassUID:
+                ct.append(file)
 
-def warning(msg):
-    if (DEBUG_LEVEL >= WARNING_LEVEL):
-        st = datetime.utcnow().strftime('%H:%M:%S.%f')[:-3]
-        print('([%d] %s): %s' % (WARNING_LEVEL, st, msg))
+            if RTSSS_SOPClassUID in d.SOPClassUID:
+                rs = file
 
+            if RT_PLAN_SOPClassUID in d.SOPClassUID:
+                rp = file
 
-def info(msg):
-    if (DEBUG_LEVEL >= INFO_LEVEL):
-        st = datetime.utcnow().strftime('%H:%M:%S.%f')[:-3]
-        print("([%d] %s): %s" % (INFO_LEVEL, st, msg))
+            if RT_DOSE_SOPClassUID in d.SOPClassUID:
+                doses.append(file)
 
-def trace(msg):
-    if (DEBUG_LEVEL >= TRACE_LEVEL):
-        st = datetime.utcnow().strftime('%H:%M:%S.%f')[:-3]
-        print("([%d] %s): %s" % (INFO_LEVEL, st, msg))
-
-
-def error(msg):
-    st = datetime.utcnow().strftime('%H:%M:%S.%f')[:-3]
-    print("([%d] %s): %s" % (ERROR_LEVEL, st, msg))
-
+    return rs, rp, ct, doses
 
 def listDirectory(directory):
     files = []
@@ -64,8 +71,6 @@ def findContours(dataset, number):
                     data = np.array(contour.ContourData)
                     n = data.shape[0]
                     coords = np.reshape(data, (n//3, 3) )
-                    #coords[:, 1] *= -1  # for some reason Y axis is reversed
-                    #coords = coords[:, np.array([1,0,2])]
                     coords = coords.astype(np.float)
                     contours.append(coords)
     return contours

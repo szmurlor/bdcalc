@@ -17,8 +17,7 @@ import socket
 import subprocess
 from ct import CTVolumeDataReader
 from volumedata import VolumeData
-from dicomutils import debug, error, warning, info
-
+from common import log
 
 DEBUG_MAX_BEAMLETS_KEY = "debug_max_beamlets"
 
@@ -173,7 +172,7 @@ def calculate_single_beamlet(beamlets, opt):
 
                         beamlet["doses_map"] = mdoses
                 else:
-                    print("ERROR! beamlet_doses == None!")
+                    log.error("ERROR! beamlet_doses == None!")
 
                 res['beamlets'].append(beamlet)
 
@@ -317,9 +316,9 @@ class VMC:
 
         for beamlet in response['beamlets']:
             beamlet_idx = beamlet['idx']
-            info("Starting postprocessing of beamlet [%d]" % beamlet_idx)
+            log.info("Starting postprocessing of beamlet [%d]" % beamlet_idx)
             mdoses = beamlet["doses_map"]
-            info("Size of interesting doses for %s is: %d" % (beamlet_idx, mdoses.shape[0]))
+            log.info("Size of interesting doses for %s is: %d" % (beamlet_idx, mdoses.shape[0]))
 
             print(f"max mdoses = {numpy.max(mdoses[:,1])}")
             self.total_doses[mdoses[:,0].astype(int)] = self.total_doses[mdoses[:,0].astype(int)] + mdoses[:,1]
@@ -333,7 +332,7 @@ class VMC:
                 self.lock.release()
 
         end = time.time()
-        info("Postprocessing time: %s s" % (end - start))
+        log.info("Postprocessing time: %s s" % (end - start))
 
 
     def run(self, config_file=None, v2Drow=None, voxels=None, options=None, ctfiles=None):
@@ -341,7 +340,7 @@ class VMC:
         self.check_config(config_file)
 
         if not os.path.isdir(self.vmc_home):
-            info("Created new folder for vmc++: %s" % self.vmc_home)
+            log.info("Created new folder for vmc++: %s" % self.vmc_home)
             shutil.copytree("%s/vmc++_dist" % os.path.dirname(os.path.realpath(__file__)), self.vmc_home)
 
         """
@@ -355,20 +354,20 @@ class VMC:
         ct_ramp_in = self.rass_data.input("ct_ramp.data")
         if os.path.isfile(ct_ramp_in):
             ct_ramp_dest = "%s/data/ct_ramp.data" % self.vmc_home
-            info("Taking ct_ramp.data from input folder: %s to %s" % (ct_ramp_in, ct_ramp_dest))
+            log.info("Taking ct_ramp.data from input folder: %s to %s" % (ct_ramp_in, ct_ramp_dest))
             shutil.copy(ct_ramp_in, ct_ramp_dest)
 
         spectrum_in = self.rass_data.input("spectrum")
         if os.path.isfile(spectrum_in):
             spectrum_dest = "%s" % self.spectrum_filename
-            info("Taking energy spectrum from input folder: %s, to file: %s" % (spectrum_in, spectrum_dest))
+            log.info("Taking energy spectrum from input folder: %s, to file: %s" % (spectrum_in, spectrum_dest))
             shutil.copy(spectrum_in, spectrum_dest)
 
         
 
-        debug("Size of v2Drow = %d" % v2Drow.shape)
+        log.debug("Size of v2Drow = %d" % v2Drow.shape)
         self.condInterestingVoxels = (v2Drow >= 0)
-        debug("Shape of condInterestingVoxels = %d" % self.condInterestingVoxels.shape)
+        log.debug("Shape of condInterestingVoxels = %d" % self.condInterestingVoxels.shape)
 
         interesting_voxels_file = self.rass_data.processing('interesting_voxels.dat');
         save_matrix(self.condInterestingVoxels, interesting_voxels_file)
@@ -403,17 +402,17 @@ class VMC:
         r_finished, r_waiting = ray.wait(r_ids, 1)
         while r_waiting:            
             for r in r_finished:
-                info(f"Posprocesing...")
+                log.info(f"Posprocesing...")
                 self.postprocess(ray.get(r))
-            info("Waiting for results...")
+            log.info("Waiting for results...")
             r_finished, r_waiting = ray.wait(r_waiting, timeout=2.0)
-            info(f"Got {len(r_finished)} results to posprocess. Still waiting for {len(r_waiting)}...")
+            log.info(f"Got {len(r_finished)} results to posprocess. Still waiting for {len(r_waiting)}...")
 
         for r in r_finished:
-            info(f"Posprocesing...")
+            log.info(f"Posprocesing...")
             self.postprocess(ray.get(r))
 
-        info("Min total dose = %f, Max total dose = %f" % (numpy.min(self.total_doses), numpy.max(self.total_doses)))
+        log.info("Min total dose = %f, Max total dose = %f" % (numpy.min(self.total_doses), numpy.max(self.total_doses)))
         saveToVTI(self.rass_data.output("beamlet_total_for_beam_%d" % self.conf_data["beam_number"]), self.total_doses, self.spacing, self.n, self.orig)
 
         os.chdir(oldWorkingDirectory)
@@ -439,7 +438,7 @@ class VMC:
     # noinspection PyTypeChecker
     def prepare_ct_file(self, v2Drow):
 
-        info("Reading CT Dicom data from folder: %s" % self.dicom_folder)
+        log.info("Reading CT Dicom data from folder: %s" % self.dicom_folder)
         # wczytuję oryginalny CT z DICOMa
         reader = CTVolumeDataReader(self.dicom_folder, ctfiles=self.ctfiles)
         ctVolumeData = reader.read()
@@ -523,7 +522,7 @@ class VMC:
             npar[:] = 1
 
         if (v2Drow is not None):
-            info("Zeruję gęstość masy dla wszystkich 'nienteresujących voxeli' dla %d voxeli" % numpy.sum(v2Drow < 1))
+            log.info("Zeruję gęstość masy dla wszystkich 'nienteresujących voxeli' dla %d voxeli" % numpy.sum(v2Drow < 1))
             npar[v2Drow < 1] = 0
 
 
@@ -532,7 +531,7 @@ class VMC:
         fout.close()
 
         # Zapisywanie danych do formatu vti
-        info("Zapisuję przeskalowane dane gęstości masy z CT do pliku: %s" % self.rass_data.output("approximated_ct"))
+        log.info("Zapisuję przeskalowane dane gęstości masy z CT do pliku: %s" % self.rass_data.output("approximated_ct"))
         volume = VolumeData()
         grid = volume.createGrid((self.spacing[0], self.spacing[1], self.spacing[2]), (self.n[0], self.n[1], self.n[2]), (self.orig[0], self.orig[1], self.orig[2]))
         array = volume.createFloatArray(grid)
@@ -542,7 +541,7 @@ class VMC:
         grid.GetPointData().SetScalars(array)
         volume = VolumeData(grid)
         volume.save(self.rass_data.output("approximated_ct"))
-        info("Zapisałem przeskalowane dane gęstości masy z CT do pliku: %s" % self.rass_data.output("approximated_ct"))
+        log.info("Zapisałem przeskalowane dane gęstości masy z CT do pliku: %s" % self.rass_data.output("approximated_ct"))
 
         return npar[v2Drow > 0]
 
@@ -574,7 +573,7 @@ class VMC:
             self.plan_origin = [float(pg['orig']['x']), float(pg['orig']['y']), float(pg['orig']['z'])]
             self.plan_spacing = [float(pg['spacing']['dx']), float(pg['spacing']['dy']), float(pg['spacing']['dz'])]
         else:
-            error("Brak informacji o siatce planowania w pliku ze specyfikacją. Użyję do obliczeń siatki CT.")
+            log.error("Brak informacji o siatce planowania w pliku ze specyfikacją. Użyję do obliczeń siatki CT.")
         if "water_phantom" in conf:
             self.water_phantom = bool(conf["water_phantom"])
 
@@ -595,7 +594,7 @@ class VMC:
         scale = self.geometric_scale
         n = self.n
 
-        error("Approximating CT grid over Planning Grid (%d x %d x %d) ..." % (n[0], n[1], n[2]))
+        log.info("Approximating CT grid over Planning Grid (%d x %d x %d) ..." % (n[0], n[1], n[2]))
         npar = ctVolumeData.getCTDataAsNumpyArray()
 
         N = numpy.array([numpy.linspace(0, n[0] - 1, n[0]), numpy.linspace(0, n[1] - 1, n[1]), numpy.linspace(0, n[2] - 1, n[2])])
@@ -655,7 +654,7 @@ class VMC:
         # print "Number of different: %d" % (numpy.sum(oldr != r))
 
         elapsed = time.time() - start
-        info("Finished aproximating CT grid over Planning Grid in %s seconds" % elapsed)
+        log.info("Finished aproximating CT grid over Planning Grid in %s seconds" % elapsed)
         return r
 
     def check_config(self, config_file):

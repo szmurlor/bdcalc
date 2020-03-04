@@ -61,7 +61,7 @@ class MyRoi:
 		dz = sc[1][0][2] - sc[0][0][2]
 		for i in range(len(sc)):  # reorder contours if the are not counter-clockwise
 			c = sc[i]
-			v12 = [0.5 * (c[0, 0] + c[1, 0]), 0.5 * (c[0, 1] + c[1, 1])]  # middle point of the firs contour's segment
+			v12 = [0.5 * (c[0, 0] + c[1, 0]), 0.5 * (c[0, 1] + c[1, 1])]  # middle point of the first contour's segment
 			dx = np.sign([c[1, 0] - c[0, 0]])
 			dy = np.sign([c[1, 1] - c[0, 1]])
 			leftNormal = (-resolution * dy, resolution * dx)  # [dx,dy] rotated by 90 degrees and scaled

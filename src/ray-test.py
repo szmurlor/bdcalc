@@ -1,5 +1,5 @@
 import ray
-from dicomutils import info
+from common import log
 
 
 def sumator(x, y):
@@ -8,7 +8,7 @@ def sumator(x, y):
 
 @ray.remote
 def ala(x, y):
-    info("ala %f" % (sumator(x, y)))
+    log.info("ala %f" % (sumator(x, y)))
     return x+y
 
 

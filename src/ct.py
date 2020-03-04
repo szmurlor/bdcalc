@@ -7,9 +7,11 @@ import pydicom
 
 import dicomutils
 from dicomutils import DICOMSorter
-from dicomutils import debug, info, error, warning
 from volumedata import VolumeData
 from dicomreader import DICOMImageReader
+
+import logging
+log = logging.getLogger("ct")
 
 
 # Custom exceptions
@@ -43,7 +45,7 @@ class CTVolumeData(VolumeData):
 		self.spacing = data.GetSpacing()
 		self.dimensions = data.GetDimensions()
 		self.origin = data.GetOrigin()
-		info("CT Spacing %s, Dimensions %s, Origin %s" % (self.spacing, self.dimensions, self.origin))
+		log.info("CT Spacing %s, Dimensions %s, Origin %s" % (self.spacing, self.dimensions, self.origin))
 
 	def getIndexCoordinatesOfPoint(self, x, y, z, ctScale=1.0):
 		ix = int((x / ctScale - self.origin[0]) / self.spacing[0])
@@ -51,11 +53,11 @@ class CTVolumeData(VolumeData):
 		iz = int((z / ctScale - self.origin[2]) / self.spacing[2])
 
 		if ix > self.dimensions[0]:
-			error("Warning! ix = %d > size x = %d" % (ix, self.dimensions[0]))
+			log.error("Warning! ix = %d > size x = %d" % (ix, self.dimensions[0]))
 		if iy > self.dimensions[1]:
-			error("Warning! iy = %d > size y = %d" % (ix, self.dimensions[1]))
+			log.error("Warning! iy = %d > size y = %d" % (ix, self.dimensions[1]))
 		if iz > self.dimensions[2]:
-			error("Warning! iz = %d > size z = %d" % (ix, self.dimensions[2]))
+			log.error("Warning! iz = %d > size z = %d" % (ix, self.dimensions[2]))
 
 		return ix, iy, iz
 
@@ -79,7 +81,7 @@ class CTVolumeData(VolumeData):
 class CTVolumeDataReader(object):
 	def __init__(self, directory, study=None, ctfiles=None):
 		if ctfiles is None:
-			info("Looking for valid files in %s" % directory)
+			log.info("Looking for valid files in %s" % directory)
 			files = dicomutils.listDirectory(directory)
 			files = self.filter(files)
 		else:
@@ -90,14 +92,14 @@ class CTVolumeDataReader(object):
 		if len(studies) is 1:
 			if study is None or study in studies:
 				study = list(studies.keys())[0]
-				info("Study ID: %s" % study)
+				log.info("Study ID: %s" % study)
 			else:
 				raise StudyMismatchException(directory, study, studies.keys())
 		elif len(studies) is 0:
 			raise NoCTFilesException()
 		else:
 			if study is not None:
-				info("Study ID: %s" % study)
+				log.info("Study ID: %s" % study)
 				files = studies[study]
 			else:
 				raise MultipleStudiesException(directory, studies.keys())
@@ -106,7 +108,7 @@ class CTVolumeDataReader(object):
 		if len(files) is 0:
 			raise NoCTFilesException()
 		else:
-			info("Reading %s CT files" % len(files))
+			log.info("Reading %s CT files" % len(files))
 
 		self.thickness = 0
 		if len(files) > 1:
@@ -114,7 +116,7 @@ class CTVolumeDataReader(object):
 			f1 = pydicom.read_file(files[1])
 			st = float(f0.SliceThickness) if f0.SliceThickness != '' else 0
 			dst = list(map(float, f1.ImagePositionPatient))[2] - list(map(float, f0.ImagePositionPatient))[2]
-			debug("slice thickness = %g, distance = %g" % (st, dst))
+			log.debug("slice thickness = %g, distance = %g" % (st, dst))
 			self.thickness = max([st, dst])
 
 		self.files = files
