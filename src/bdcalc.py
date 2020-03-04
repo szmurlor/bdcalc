@@ -526,13 +526,16 @@ if __name__ == '__main__':
     for beam in beams:
         doseScaling = float(beam.DoseGridScaling)
         try:
-            bn = int(beam.ReferencedRTPlans[0].ReferencedFractionGroups[0].ReferencedBeams[0].ReferencedBeamNumber)
+            #info(f"Read beam {dir(beam.ReferencedRTPlanSequence[0].ReferencedFractionGroupSequence[0].ReferencedBeamSequence[0])}")
+            bn = int(beam.ReferencedRTPlanSequence[0].ReferencedFractionGroupSequence[0].ReferencedBeamSequence[0].ReferencedBeamNumber)
         except:
+            print("Semething wrong went...")
             if totalDoses is None:
                 singleBeam = True
                 totalDoses = beam.pixel_array.copy()
                 totalDosesFile = beam.filename
             continue
+        info(f"Read beam {bn}")
         beamDoses[bn] = beam.pixel_array
         if doseScaling is not None and float(beam.DoseGridScaling) != doseScaling:
             warning('Strange data: DoseGridScaling is not same all beamlets!')
@@ -542,10 +545,12 @@ if __name__ == '__main__':
         bns = beamDoses.keys()
         totalDoses = beamDoses[bns[0]].copy()
         for i in range(1, len(bns)):
+            info(f"Adding doses from beam {i}")
             totalDoses += beamDoses[bns[i]]
 
     totalDoses = np.array(totalDoses, dtype=np.float32)
     info("Read doses for %d beams" % len(beamDoses))
+    npTotalDoses = np.array(totalDoses, dtype=np.float32)
 
     minDose = np.min(totalDoses)
     averageDose = np.average(totalDoses)
@@ -575,6 +580,10 @@ if __name__ == '__main__':
         kmax, jmax, imax,
         xbase, xbase + kmax * dx, ybase, ybase + jmax * dy, zbase + zoffsets[0], zbase + zoffsets[-1],
         dx, dy, dz, dv))
+
+    ## Tylko debugginf poniżej - sprawdzamy całkowite dawki.
+    info("Max total npTotalDoses: %f" % np.max(npTotalDoses))
+    vmc.saveToVTI(rass_data.output("totalDoses_test"), np.reshape(npTotalDoses, np.prod([kmax, jmax, imax])), [dx, dy, dz], [kmax, jmax, imax], [xbase, ybase, zbase])
 
     if options["override_dicom_plan_grid"]:
         pg = options["override_plan_grid"]
