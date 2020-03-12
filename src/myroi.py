@@ -57,7 +57,21 @@ class MyRoi:
 		self.xmax = self.xmin
 		self.ymin = contours[0][0][1]
 		self.ymax = self.ymin
-		sc = sorted(contours, key=lambda c: c[0][2]) # sorting by the z
+
+
+		cont_for_sorted = []
+		for c in contours:
+			mmix = np.min(c[:,0])
+			mmax = np.max(c[:,0])
+			mmiy = np.min(c[:,1])
+			mmay = np.max(c[:,1])
+			bbarea = (mmax - mmix) * (mmay - mmiy)
+			cont_for_sorted.append((c, bbarea))
+
+		#sc = sorted(contours, key=lambda c: c[0][2]) # sorting by the z
+		cont_for_sorted = sorted(cont_for_sorted, key=lambda c: (c[0][0][2], -c[1])) # sorting by the z ascending and negative area to make it descending
+		sc = list(map(lambda c: c[0], cont_for_sorted))
+
 		dz = sc[1][0][2] - sc[0][0][2]
 		for i in range(len(sc)):  # reorder contours if the are not counter-clockwise
 			c = sc[i]

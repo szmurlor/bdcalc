@@ -819,7 +819,7 @@ if __name__ == '__main__':
             log.info("Read beamlet doses from cache file %s" % beamlets_doses_cachefilename)
 
             if options["out_mc_doses_txt"]:
-                info('Writing doses for bundle %d' % beamNo)
+                log.info('Writing doses for bundle %d' % beamNo)
                 f = open(rass_data.output('d_%s_%d.txt' % (treatment_name, beamNo), subfolder="%s" % treatment_name),
                          'w')
                 f.write('%d\n' % sum([beamlets_doses[k].shape[0] for k in beamlets_doses.keys()]))

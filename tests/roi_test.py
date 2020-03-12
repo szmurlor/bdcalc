@@ -4,6 +4,7 @@ import dicomutils
 from common import log
 from myroi import MyRoi
 import numpy as np
+import sys
 
 
 dicom_directory = sys.argv[1]
@@ -20,7 +21,7 @@ for i in range(0, len(rtss.StructureSetROISequence)):
     roiName = rtss.StructureSetROISequence[i].ROIName
     log.info("Finding contours for %s" % roiName)
     myROIs.append(MyRoi(dicomutils.findContours(rtss, rtss.StructureSetROISequence[i].ROINumber),
-                        roiName, float(beams[0].PixelSpacing[0]) / 1000.0))
+                    roiName, float(beams[0].PixelSpacing[0]) / 1000.0))
 
     if ("body" in roiName.lower() or "skin" in roiName.lower() or "outline" in roiName.lower()) and (idxROIBody == -1):
         idxROIBody = i
@@ -46,25 +47,32 @@ for r in range(len(myROIs)):
     myROIs[r].mark(xbase / SCALE, ybase / SCALE, dx / SCALE, dy / SCALE, kmax, jmax, imax,
                     np.linspace(zbase, zbase + (imax - 1) * dz, imax) / SCALE, roi_marks, 2 ** r, ctgriddata=None)
 
-log.info(myROIs)
-log.info(myROIs[0].paths)
+#log.info(myROIs)
+#log.info(myROIs[0].paths)
 
+idx_NT = -1
+i = 0
+for r in myROIs:
+    if (r.name == "NT"):
+        bit_NT = 2 ** i
+        idx_NT = i
+    i += 1
 from matplotlib import pyplot as plt
 j = 0
 last_z = None
-for i, p in enumerate( myROIs[1].paths ):
+for i, p in enumerate( myROIs[idx_NT].paths ):
     if (p is not None):
-        if (last_z is None or last_z != myROIs[1].z[i]):
+        if (last_z is None or last_z != myROIs[idx_NT].z[i]):
             j += 1 
             plt.clf()
             plt.cla()
-            last_z = myROIs[1].z[i]
+            last_z = myROIs[idx_NT].z[i]
             log.info(f"last_z = {last_z}, zoffsets[0] ={zoffsets[0]}")
             i_layer = int((last_z - (zoffsets[0]+zbase)/SCALE) / (dz/SCALE))
             log.info(f"i_layer ={i_layer}")
-            plt.imshow( roi_marks[i_layer]& 2, extent=(xbase/SCALE, (xbase+dx*kmax)/SCALE, ybase/SCALE, (ybase+dy*jmax)/SCALE), origin='lower')  
+            plt.imshow( roi_marks[i_layer]& bit_NT, extent=(xbase/SCALE, (xbase+dx*kmax)/SCALE, ybase/SCALE, (ybase+dy*jmax)/SCALE), origin='lower')  
         plt.scatter(p.vertices[:,0], p.vertices[:,1])
-        plt.savefig(f"c{j}.png", dpi=400)
+        plt.savefig(f"c{j}.png", dpi=200)
 
 #for r in range(0, len(myROIs)):
 #    log.info("Marking voxels for %s" % myROIs[r].name)
