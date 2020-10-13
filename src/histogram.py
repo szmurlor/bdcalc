@@ -35,6 +35,7 @@ def histogram(doses, markerArray, sid, fname, scale, npts, dmax):
 class DosesMain:
     def __init__(self, fname):
         self.override_fluences_filename = None
+        self.override_output_folder = None
         self.preview_fluence = None
         self.save_png_preview_fluence = None
         self.path = os.path.dirname(fname)
@@ -66,23 +67,39 @@ class DosesMain:
 
         self.d = None # self.D.dot(self.x)
 
+    def get_fluences_filename(self, i):
+        if self.override_fluences_filename is not None:
+            # if overriden name starts with / or . the pareto data path will not be attached
+            if (self.override_fluences_filename[0] in '/.'):
+                fname = '%s%d.txt' % (self.override_fluences_filename, i)
+            else:
+                fname = '%s/%s%d.txt' % (self.path, self.override_fluences_filename, i)
+        else:
+            fname = '%s/x_%s_%d.txt' % (self.path, self.treatment_name, i)
+
+        return fname
 
     def read_fluences(self):
         res = np.zeros((self.btno,), dtype=np.float32)
         j = 0
+        start_counting_from = 0
+        fn = self.get_fluences_filename(start_counting_from)
+        if (not os.path.isfile(fn)):
+            start_counting_from += 1
+            fn = self.get_fluences_filename(start_counting_from)
+
+        print(f"Starting counting fluence files from: {start_counting_from}")
+
         for i in range(self.bno):
             nbeam = self.bnos[i]
-            print("reading fluences for beam %s" % (nbeam))
-            if self.override_fluences_filename is not None:
-                fbeam = open('%s/%s%d.txt' % (self.path, self.override_fluences_filename, nbeam-1))
-            else:
-                fbeam = open('%s/x_%s_%d.txt' % (self.path, self.treatment_name, nbeam))
-            for k in range(self.bsizes[nbeam-1]):
-                print(j)
+            fn = self.get_fluences_filename(start_counting_from + nbeam - 1)
+            print(f"Reading fluences for beam {nbeam} from file: {fn}")
+            fbeam = open(fn)
+
+            for k in range(self.bsizes[i]):
                 s = fbeam.readline()
-                print (s)
                 cols = s.split(' ')
-                if len(cols) == 1:
+                if len(cols) == 1: # sometimes fluence map files have additional ordinal column 
                     res[j] = float(cols[0])
                 else:
                     res[j] = float(cols[1])
@@ -157,7 +174,15 @@ class DosesMain:
 
         dmax = np.max(self.d)
         HIST_PTS = 50
-        f = open('%s/histograms.gpt' % self.path, 'w')
+
+        if self.override_output_folder is not None and not os.path.isdir(self.override_output_folder):
+            os.makedirs(self.override_output_folder)
+
+        if (self.override_output_folder is not None):
+            f = open('%s/histograms.gpt' % self.override_output_folder, 'w')
+        else:
+            f = open('%s/histograms.gpt' % self.path, 'w')
+
         f.write('set grid\nset style data lp\nset xlabel \'Dose [cGy]\'\n'
                 'set ylabel \'% of volume\'\nset yrange [0:110]\nplot ')
         for r in range(self.roino):
@@ -179,6 +204,9 @@ class DosesMain:
         if self.x is None:
             self.x = self.read_fluences()
 
+        if self.override_output_folder is not None and not os.path.isdir(self.override_output_folder):
+            os.makedirs(self.override_output_folder)
+
         t = 0
         for i in range(self.bno):
 
@@ -190,7 +218,11 @@ class DosesMain:
             if self.preview_fluence or self.save_png_preview_fluence:
                 fmap = np.zeros((rows, cols))
 
-            f = open('%s/Field %d_%s.fluence' % (self.path, nbeam, self.treatment_name), 'w')
+            if self.override_output_folder is not None:
+                f = open('%s/Field %d_%s.fluence' % (self.override_output_folder, nbeam, self.treatment_name), 'w')
+            else:
+                f = open('%s/Field %d_%s.fluence' % (self.path, nbeam, self.treatment_name), 'w')
+
             f.write('# Pareto optimal fluence for %s field %d\n' % (self.treatment_name, nbeam))
             f.write('optimalfluence\n')
             f.write('sizex %d\n' % self.xcoords[nbeam]["sizex"])
@@ -225,7 +257,11 @@ class DosesMain:
                 plt.show()
 
             if self.save_png_preview_fluence:
-                fname = '%s/Preview Field %d_%s.png' % (self.path, nbeam, self.treatment_name)
+                if self.override_output_folder is not None:
+                    fname = '%s/Preview Field %d_%s.png' % (self.override_output_folder, nbeam, self.treatment_name)
+                else:
+                    fname = '%s/Preview Field %d_%s.png' % (self.path, nbeam, self.treatment_name)
+
                 print("Saving plot to %s" % fname)
                 import matplotlib.pyplot as plt
                 plt.imshow(fmap)
@@ -254,7 +290,7 @@ class DosesMain:
 
 if __name__ == '__main__':
     if len(argv) < 2:
-        print('Usage: %s <mainfile> [histogram|fluences] [-of override_fluences_filename] --preview_fluence --save_png_fluence' % argv[0])
+        print('Usage: %s <mainfile> [histogram|fluences] [-of override_fluences_filename] [-od output_folder] --preview_fluence --save_png_fluence' % argv[0])
         exit()
 
     path = os.path.dirname(argv[1])
@@ -263,6 +299,10 @@ if __name__ == '__main__':
     if "-of" in argv:
         idx = argv.index("-of")
         main.override_fluences_filename = argv[idx+1]
+
+    if "-od" in argv:
+        idx = argv.index("-od")
+        main.override_output_folder = argv[idx+1]
 
     if "--preview_fluence" in argv:
         print("Previewing fluences")

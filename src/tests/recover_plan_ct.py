@@ -85,7 +85,7 @@ def read_d(fpath, casename, nbeams, coords, dimensions, fluences):
             # jeżeli istnieje wersja binarna pliku, utworzona za pomocą narzędzia convert_doses 
             # - mega szybsze wczytywanie z użyciem Pandas
 
-            printp(f'\rReading doses from binary file: {fname}... ')
+            printp(f'\rReading doses from binary file: {fname_cache}... ')
 
             v,b,d = _read_doses_cache(fname_cache)       
 
@@ -151,7 +151,7 @@ def read_rois(fname, dimensions):
             x = int(x)
             r = float(r)
             c = float(c)
-            rois[z][y][x] = r
+            rois[z][y][x] = int(r) & 8
     return rois
 
 
