@@ -17,7 +17,7 @@ case $key in
     ;;
     *)
     echo "Usage: run-docker-head.sh [ -i ] "
-    echo "Starts a docker continer for the head node. It checks for existence of a volum to the common NFS share with simulation results."
+    echo "Starts a docker continer for the head node. It checks for existence of a volume to the common NFS share with simulation results."
     echo "Options:"
     echo "    -i: starts the container in an interactive mode allocating a terminal"
     exit 1

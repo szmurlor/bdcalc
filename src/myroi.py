@@ -314,10 +314,12 @@ class MyRoi:
 	def save_marks(self, fname, marks, sid):
 		print("Saving marks to cache file: %s" % fname)
 		interesting = (marks & sid) == sid
+		bcode = struct.pack("i", -1)
 		bnint = struct.pack("i", np.prod(interesting.shape))
-		bsid = struct.pack("i", sid)
+		bsid = struct.pack("q", sid) # long long
 
 		fout = open(fname, "wb")
+		fout.write(bcode)
 		fout.write(bnint)
 		fout.write(bsid)
 		interesting.tofile(fout)
@@ -328,11 +330,20 @@ class MyRoi:
 		res = False
 		if os.path.isfile(fname):
 			fin = open(fname, "rb")
-			bnint = fin.read(4)
-			bsid = fin.read(4)
+			bcode = fin.read(4)
+			code = struct.unpack("i", bcode)[0]
 
-			nint = struct.unpack("i", bnint)[0]
-			sid = struct.unpack("i", bsid)[0]
+			if code < 0: # to znaczy, ze w formacie pliku uzywamy long long do sida
+				bnint = fin.read(4)
+				bsid = fin.read(8)
+				nint = struct.unpack("i", bnint)[0]
+				sid = struct.unpack("q", bsid)[0]
+			else:
+				bnint = bcode
+				nint = struct.unpack("i", bnint)[0]
+				bsid = fin.read(4)
+				sid = struct.unpack("i", bsid)[0]
+		
 			print("nint = %d" % (nint))
 			if nint == np.prod(marks.shape):
 				interesting = np.fromfile(fin, np.bool_, nint)
