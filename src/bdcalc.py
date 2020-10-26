@@ -36,8 +36,8 @@ class NoRSFileException(Exception):
 #ray.init(redis_address="10.0.2.15:59999")
 #ray.init(redis_address=options["ray_redis_address"])        
 #ray.init(redis_address="172.17.0.2:59422")
-ray.init(redis_address="ray-0:6379")
-#ray.init(ignore_reinit_error=True)
+#ray.init(redis_address="ray-0:6379")
+ray.init(ignore_reinit_error=True)
 import vmc
 
 def save_beam_doses(fname, beam_doses):

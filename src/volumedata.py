@@ -2,9 +2,10 @@
 # -*- coding: utf-8 -*-
 from os import path
 from vtk import vtkXMLImageDataReader, vtkXMLImageDataWriter
-from vtk import vtkImageData, vtkShortArray, vtkIntArray, vtkFloatArray
-
+from vtk import vtkImageData, vtkShortArray, vtkIntArray, vtkLongArray, vtkFloatArray
 from common import log
+import numpy as np
+
 
 
 class VolumeData(object):
@@ -17,7 +18,23 @@ class VolumeData(object):
 				log.warning("Thickness corrected: %g -> %g" % (sz, thickness))
 				data.SetSpacing([sx, sy, thickness])
 
-	def createGrid(self, spacing, dimensions, origin):
+	def saveVolumeGridToFile(spacing, dims, origin, ngrid, filename):
+		grid = VolumeData.createGrid(spacing, dims, origin)
+		array = VolumeData.createFloatArray(grid)
+		array.SetVoidArray(ngrid, np.prod(ngrid.shape), 1)
+		grid.GetPointData().SetScalars(array)
+		volume = VolumeData(grid)
+		volume.save(filename)
+
+	def saveVolumeGridToFileAsLong(spacing, dims, origin, ngrid, filename):
+		grid = VolumeData.createGrid(spacing, dims, origin)
+		array = VolumeData.createLongArray(grid)
+		array.SetVoidArray(ngrid, np.prod(ngrid.shape), 1)
+		grid.GetPointData().SetScalars(array)
+		volume = VolumeData(grid)
+		volume.save(filename)
+
+	def createGrid(spacing, dimensions, origin):
 		grid = vtkImageData()
 
 		sx, sy, sz = spacing
@@ -40,6 +57,16 @@ class VolumeData(object):
 		log.debug("Created an array with %d points" % n)
 		return array
 
+	def createLongArray(grid):
+		n = grid.GetNumberOfPoints()
+
+		array = vtkLongArray()
+		array.SetNumberOfComponents(1)
+		array.SetNumberOfTuples(n)
+
+		log.debug("Created a long array with %d points" % n)
+		return array
+
 	def createIntegerArray(self, grid):
 		n = grid.GetNumberOfPoints()
 
@@ -50,7 +77,7 @@ class VolumeData(object):
 		log.debug("Created an array with %d points" % n)
 		return array
 
-	def createFloatArray(self, grid):
+	def createFloatArray(grid):
 		n = grid.GetNumberOfPoints()
 
 		array = vtkFloatArray()

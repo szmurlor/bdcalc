@@ -131,8 +131,6 @@ class RTStructureVolumeDataReader(object):
             new = copy.deepcopy(old)
             new.ObservationNumber = old.ObservationNumber + 1
             new.ROIObservationLabel = asASCII(roiname)
-            #new.ROIInterpreter = roiinterpreter
-            #new.RTROIInterpretedType = roitype
             new.ReferencedROINumber = roinumber
             new.RefdROINumber = roinumber
             return new

@@ -399,7 +399,7 @@ class VMC:
 
         r_ids = [calculate_single_beamlet.remote([b],opt) for b in bb]
 
-        r_finished, r_waiting = ray.wait(r_ids, 1)
+        r_finished, r_waiting = ray.wait(r_ids, timeout=1)
         while r_waiting:            
             for r in r_finished:
                 log.info(f"Posprocesing...")
