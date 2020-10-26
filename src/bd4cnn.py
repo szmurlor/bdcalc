@@ -244,6 +244,7 @@ if __name__ == '__main__':
     plan_spacing = (dx, dy, dz)
     ctOnPlanningGrid = ctVolumeData.approximateCTOnPlanGrid( plan_origin, plan_spacing, plan_dimensions )
 
+    ## zapisuję do lików VTI
     npar = ctOnPlanningGrid
     VolumeData.saveVolumeGridToFile(plan_spacing, plan_dimensions, plan_origin, 
              npar, rass_data.output("approximated_ct"))
@@ -261,3 +262,34 @@ if __name__ == '__main__':
 
     VolumeData.saveVolumeGridToFile(plan_spacing, plan_dimensions, plan_origin, 
              totalDoses, rass_data.output("total_doses"))
+
+
+    ## zapisuję do plików ndarray
+    from bdfileutils import save_ndarray, read_ndarray
+    ctOnPlanningGrid = np.reshape(ctOnPlanningGrid, (imax, jmax, kmax))
+    save_ndarray(rass_data.output("approximated_ct.nparray"),ctOnPlanningGrid)
+
+    roi_marks = np.reshape(roi_marks, (imax, jmax, kmax))
+    save_ndarray(rass_data.output("roi_marks.nparray"),roi_marks)
+
+
+    for r in range(0, len(myROIs)):
+        d = np.array(np.bitwise_and(roi_marks, (2 ** r)) / (2 ** r), dtype=np.int32)
+        d = np.reshape(d, (imax, jmax, kmax))
+        save_ndarray(rass_data.output(f"roi_marks_{myROIs[r].name}.nparray"), d)
+
+
+    totalDoses = np.reshape(totalDoses, (imax, jmax, kmax))
+    save_ndarray(rass_data.output("total_doses.nparray"),totalDoses)
+
+    with open(rass_data.output("roi_mapping.txt"),"w") as f:
+        for i in range(len(myROIs)):
+            f.write(f"{myROIs[i].name}:{2 ** i}\n")
+
+    #save_to_numpy_file(totalDoses, "nazwa")
+
+    #npdata = read_from_file("nazwa")
+    #sum( npdata[:,:,0] > 0 ) == 0
+    #imshow()
+
+    # nTotalDoses = np.round(totalDoses / np.max(totalDoses) * 32)

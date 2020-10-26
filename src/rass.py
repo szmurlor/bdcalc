@@ -82,7 +82,7 @@ class RASSData:
 
         return "%s/%s" % (f, fname)
 
-    def input(self, fname=None, subfolder=None):
+    def input(self, fname=None, subfolder=None, check=True):
         """ Jeżeli plik fname istnieje w folderze rootfolder i podfolderze subfolder,
         to jest bezpośrednio do niego zwracany uchwyt. Jak nie istnieje to plik jest kopiowany na podstawie konfiguracji
         rassdataconfig.
@@ -92,17 +92,19 @@ class RASSData:
         :return: pełna ścieżka do pliku
         """
         file = self._get_folder("input", fname, subfolder)
-        if not os.path.isfile(file):
-            if fname in self.data["files"]:
-                sourcefile = self.data["files"][fname]["sourcefile"]
-                if os.path.exists(sourcefile) and os.path.isfile(sourcefile):
-                    shutil.copy(sourcefile, file)
-                else:
-                    logging.error("The sourcefile %s defined in %s file for %s does not exist." % (sourcefile, self.rassdata_configfile, fname))
+        
+        if check:
+            if not os.path.isfile(file):
+                if fname in self.data["files"]:
+                    sourcefile = self.data["files"][fname]["sourcefile"]
+                    if os.path.exists(sourcefile) and os.path.isfile(sourcefile):
+                        shutil.copy(sourcefile, file)
+                    else:
+                        logging.error("The sourcefile %s defined in %s file for %s does not exist." % (sourcefile, self.rassdata_configfile, fname))
 
-        if not os.path.isfile(file) and not os.path.isdir(file):
-            logging.error("The file %s does not exist and is not defined in %s file." % (file, self.rassdata_configfile))
-            file = "File %s does not exist and is not defined in rassdata.json" % fname
+            if not os.path.isfile(file) and not os.path.isdir(file):
+                logging.error("The file %s does not exist and is not defined in %s file." % (file, self.rassdata_configfile))
+                file = "File %s does not exist and is not defined in rassdata.json" % fname
 
         return file
 
