@@ -25,7 +25,7 @@ for i in range(roi_marks.shape[0]):
 
 
 # ponizej, jezeli w katalogu */input znajduje się plik o nazwie 'roi_mapping.json',
-# przykładowstruktura tego pliku:
+# przykładowa struktura tego pliku:
 # {
 #    "ptv-plan": 6,
 #    "kanal kreg.": 5,
@@ -35,8 +35,8 @@ for i in range(roi_marks.shape[0]):
 #    "Patient Outline": 1
 #}
 #
-# najważniejsze są roie o najwyzszych numerach. Czyli jak woksel należydo do kilku roiow,
-# to w zmapowanym obrazie zostanie dla nie przypisany najwyzszy numer - zazwyczaj PTV jest najwazniejszy.
+# najważniejsze są roie o najwyższych numerach. Czyli jak woksel należy do do kilku roi-ów,
+# to w zmapowanym obrazie zostanie dla niego przypisany najwyższy numer - zazwyczaj PTV jest najważniejszy.
 
 roi_marks_mapped = np.zeros(roi_marks.shape, dtype=np.int32)
 if os.path.isfile(rass_data.input("roi_mapping.json", check=False)):

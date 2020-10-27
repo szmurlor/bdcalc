@@ -1,3 +1,55 @@
+## Przetwarzanie plików do uczenia sieci neuronowych
+
+1. Zakładam że jest jakiś folder nadrzędny, a w nim znajdują się podfoldery,
+które zawierają dane do analizy. 
+2. Zakładam, że każdy podfolder zawiera strukturę: `input, processing, output`
+3. W pliku `input/roi_mapping.json` może znajdować się mapowanie ROIów na
+jakieś numery. Wtedy dla każdego przypadku spróbujemy uruchomić mapowanie
+znajdujących się w tym plików ROIów na jakieś liczby i zostaną utworzone
+obrazki PNG.
+
+
+Możemy uruchamiać na przykład tak:
+
+```
+python3 bd4cnn_process.py /home/username/sims/root_folder_with_subfolders
+```
+
+Wtedy scenariusz może być taki:
+
+1. Przechodzimy po wszystkich podkatalogach i sprawdzamy czy dane się przetworzone - czy utworzony jest określony zestaw plików w każdym `output` Jako wymagany zestaw plików przyjmujemy:
+    
+    ```bash
+    approximated_ct.nparray
+    total_doses.nparray
+    roi_marks.nparray
+    roi_mapping.txt
+    ```
+
+    Jeżeli będzie brakować, któregokolwiek pliku to zapuszczamy w tym katalogu `bd4cnn.py`.
+
+2. Przejdziemy przez wszystkie podkatalogi i zbudujemy słownik z informacjami o wymiarach i parametrach danych - potrzebujemy zapisywać origin, spacing, dimensions?
+
+3. Znajdziemy najmniejszy rozmiar (dimensions), który jesteśmy w stanie zbudować. (To wszystko w pamięci skryptu Python.)
+
+4. Przeiterujemy przez wszystkie przypadki i dla każdego spróbujemy obciąć go do rozmiaru minimalnego. Wyniki zapiszemy do plików:
+
+    ```bash
+    approximated_ct_cropped.nparray
+    total_doses_cropped.nparray
+    roi_marks_cropped.nparray
+    ```
+
+5. W zależności od tego, czy użytkownik zażyczy sobie wygenerowanie obrazów PNG to wygenerujemy je w podfolderach:
+
+    ```bash
+    images_ct_cropped
+    images_total_doses_cropped
+    images_roi_marks_cropped
+    ```
+
+## Inne
+
 Dodać do PATH folder ~/.local/bin - tam zainstalowany jest ray. Wtedy będzie można uruchomić serwer:
 
 ```bash
