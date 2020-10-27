@@ -1,6 +1,10 @@
 import numpy as np
 import struct
 import os
+import logging as log
+
+loglevel=log.WARN
+log.basicConfig(format='%(asctime)s [%(levelname)s]: %(message)s', level=loglevel)
 
 def save_ndarray(fname, data):
     """
@@ -12,7 +16,7 @@ def save_ndarray(fname, data):
     1 ... n - rozmiary w kolejnych wymiarach
     dane....
     """
-    print(f"Saving ndarray data with dimensions {data.shape} to file: {fname}")
+    log.info(f"Saving ndarray data with dimensions {data.shape} to file: {fname}")
     fout = open(fname, "wb")
 
     bdims = struct.pack("i", len(data.shape))
@@ -28,7 +32,7 @@ def save_ndarray(fname, data):
 # noinspection PyUnresolvedReferences
 def read_ndarray(fname, dtype=np.float32):
     data = None
-    print("Reading ndarray data from file: %s" % fname)
+    log.info("Reading ndarray data from file: %s" % fname)
     if os.path.isfile(fname):
         fin = open(fname, "rb")
         bdim = fin.read(4)
@@ -40,7 +44,7 @@ def read_ndarray(fname, dtype=np.float32):
             nsize = struct.unpack("i", bsize)[0]
             shape.append( nsize )
         
-        print(f"ndarray data file shape: {shape}")
+        log.info(f"The ndarray data has shape: {shape}")
 
         data = np.fromfile(fin, dtype, np.prod(shape))
         data = np.reshape(data, shape)
