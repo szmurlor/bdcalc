@@ -52,9 +52,17 @@ def do_run(args):
     miny = np.min(nadims[:,1])
     minx = np.min(nadims[:,2])
 
-    final_shape = (minz, miny, minx)
+    final_shape_min = (minz, miny, minx)
 
-    print(f"final shape: {final_shape}")
+    print(f"final shape min {final_shape_min}")
+
+    maxz = np.max(nadims[:,0])
+    maxy = np.max(nadims[:,1])
+    maxx = np.max(nadims[:,2])
+
+    final_shape_max = (maxz, maxy, maxx)
+
+    print(f"final shape max: {final_shape_max}")
 
     for sub in subs:
         folder = os.path.join(root_folder, sub)
@@ -89,66 +97,29 @@ def do_run(args):
         ref_slice[:,m[1]] = 2
         plt.imsave((f"{root_folder}/ref_slice_{sub}.png"), ref_slice)
 
-        xfrom = ref_slice.shape[1]//2-final_shape[2]//2
-        xto = ref_slice.shape[1]//2+final_shape[2]//2
-        yfrom = ref_slice.shape[0]-final_shape[1]
+        xfrom = ref_slice.shape[1]//2-final_shape_min[2]//2
+        xto = ref_slice.shape[1]//2+final_shape_min[2]//2
+        yfrom = ref_slice.shape[0]-final_shape_min[1]
         yto = ref_slice.shape[0]
         print(xfrom)
         print(xto)
         print(yfrom)
         print(yto)
-        ref_slice_cropped = ref_slice[ yfrom:yto, xfrom:xto]
-        plt.imsave((f"{root_folder}/ref_slice_{sub}_cropped.png"), ref_slice_cropped)
+        ref_slice_cropped_to_min = ref_slice[ yfrom:yto, xfrom:xto]
+        plt.imsave((f"{root_folder}/ref_slice_{sub}_cropped_to_min.png"), ref_slice_cropped_to_min)
+
+        xfrom = final_shape_max[2]//2 - ref_slice.shape[1]//2
+        yfrom = final_shape_max[1] - ref_slice.shape[0]
+        print(xfrom)
+        print(yfrom)
+        ref_slice_cropped_to_max = np.zeros( (final_shape_max[1], final_shape_max[2]))
+
+        ref_slice_cropped_to_max[ yfrom:yfrom+ref_slice.shape[0],xfrom:xfrom+ref_slice.shape[1]] = ref_slice
+        plt.imsave((f"{root_folder}/ref_slice_{sub}_cropped_to_max.png"), ref_slice_cropped_to_max)
+
 
     return
 
-    # ct[z,y,x]
-    ct = read_ndarray(rass_data.output("approximated_ct.nparray"))
-    for i in range(ct.shape[0]):
-        plt.imsave(rass_data.output(f"ct_{i}.png"), ct[i,:,:])
-
-    # doses[z,y,x]
-    doses = read_ndarray(rass_data.output("total_doses.nparray"))
-    for i in range(doses.shape[0]):
-        plt.imsave(rass_data.output(f"doses_{i}.png"), doses[i,:,:])
-
-    # roi_marks[z,y,x]
-    roi_marks = read_ndarray(rass_data.output("roi_marks.nparray"), dtype=np.int64)
-    for i in range(roi_marks.shape[0]):
-        plt.imsave(rass_data.output(f"roi_marks_{i}.png"), roi_marks[i,:,:])
-
-
-    # ponizej, jezeli w katalogu */input znajduje się plik o nazwie 'roi_mapping.json',
-    # przykładowa struktura tego pliku:
-    # {
-    #    "ptv-plan": 6,
-    #    "kanal kreg.": 5,
-    #    "serce": 4,
-    #    "pluco P": 3,
-    #    "pluco L": 2,
-    #    "Patient Outline": 1
-    #}
-    #
-    # najważniejsze są roie o najwyższych numerach. Czyli jak woksel należy do do kilku roi-ów,
-    # to w zmapowanym obrazie zostanie dla niego przypisany najwyższy numer - zazwyczaj PTV jest najważniejszy.
-
-    roi_marks_mapped = np.zeros(roi_marks.shape, dtype=np.int32)
-    if os.path.isfile(rass_data.input("roi_mapping.json", check=False)):
-        m = {}
-        with open(rass_data.input("roi_mapping.json")) as fin:
-            m.update(json.load(fin))
-
-        lst = [(rvalue, rname) for rname, rvalue in m.items()]
-        lst = sorted(lst, key=lambda i: i[0])
-
-        
-        for rvalue, rname in lst:
-            marks = read_ndarray(rass_data.output(f"roi_marks_{rname}.nparray"), dtype=np.int32)
-            b = (marks == 1)
-            roi_marks_mapped[b] = rvalue
-
-        for i in range(roi_marks_mapped.shape[0]):
-            plt.imsave(rass_data.output(f"roi_marks_mapped_{i}.png"), roi_marks_mapped[i,:,:])
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Przechodzi przez podfoldery i przetwarza dane przypadków do postaci, która może być wykorzystana w uczeniu sieci neuronowych (CNN)")
