@@ -1,10 +1,12 @@
 import numpy as np
 import struct
 import os
-import logging as log
+import logging
 
-loglevel=log.WARN
-log.basicConfig(format='%(asctime)s [%(levelname)s]: %(message)s', level=loglevel)
+log = logging.getLogger(__name__) 
+#formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+#log.setFormater(formatter)
+log.setLevel(level=logging.WARN)
 
 def save_ndarray(fname, data):
     """

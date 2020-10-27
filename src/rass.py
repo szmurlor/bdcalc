@@ -111,6 +111,14 @@ class RASSData:
     def output(self, fname=None, subfolder=None):
         return self._get_folder("output", fname, subfolder)
 
+    def output_exists(self, fname=None, subfolder=None):
+        fn=self._get_folder("output", fname, subfolder)
+        if (os.path.isfile(fn)):
+            return True
+        if (os.path.isdir(fn)):
+            return True
+        return False
+
     def processing(self, fname=None, subfolder=None):
         return self._get_folder("processing", fname, subfolder)
 

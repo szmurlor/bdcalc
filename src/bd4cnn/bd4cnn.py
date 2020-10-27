@@ -3,6 +3,7 @@
 
 import sys
 import os
+import argparse
 import pydicom as dicom
 import json
 import numpy as np
@@ -29,24 +30,13 @@ def default_options():
         "debug_level": "info"
     }
 
-
-if __name__ == '__main__':
+def do_run(args):
     ctgriddata = None
 
-    if len(argv) < 2:
-        print('Usage: %s <directory-with-data> [wp] [options config.json]' % (argv[0]))
-        print("     where: ")
-        print("         <directory-with-data> - directory with full data set DICOM files should be located\n" \
-              "                                 in 'in' subfolder (RP* - radio plan, RD* - radio doses, \n" \
-              "                                 RS* - structure set, CT* - CT data), \n")
-        print("         options config.json - a json file with configuration (if skipped default values will be\n" \
-              "                               applied),")
-        exit()
-
-    rass_data = RASSData(root_folder=argv[1])
-    # rass_data.input()
-    # rass_data.input("dicom")
-    # rass_data.output()
+    if hasattr(args,"rass_data"):
+        rass_data = args.rass_data
+    else:
+        rass_data = RASSData(root_folder=args.root_folder)
 
     ################################################################
     # Wczytuję opcje z folderu "input"
@@ -75,7 +65,7 @@ if __name__ == '__main__':
     ################################################################
     rtss, plan, ctlist, doseslist = dicomutils.find_ct_rs_rp_dicom(rass_data.input("dicom"))
     if rtss is None or plan is None:
-        raise Exception(f"No RS.* or rtss.* file in {dicom_directory}")
+        raise Exception(f"No RS.* or rtss.* file in {rass_data.input('dicom')}")
 
 
     ################################################################
@@ -293,3 +283,14 @@ if __name__ == '__main__':
     #imshow()
 
     # nTotalDoses = np.round(totalDoses / np.max(totalDoses) * 32)
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="Przetwarza pliki DICOM w folderze input/dicom. Tworzy mapy ROIów, wyciąga dawki, rzutuje dane CT na siatkę planowania")
+    parser.add_argument("root_folder", help="główny katalog z danymi, musi mieć strukturę `input,processing,output`, \n" \
+                        "(RP* - radio plan, RD* - radio doses, \n" \
+                        "RS* - structure set, CT* - CT data), \n")
+    parser.add_argument("--options", help="opcjonalny plik w formacie JSON z opcjami")
+    args = parser.parse_args()
+
+    do_run(args)
