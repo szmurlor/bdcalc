@@ -48,8 +48,8 @@ class RASSData:
         self.rassdata_configfile = None
 
         if root_folder is not None:
-            if not root_folder.startswith("/"):
-                raise Exception("root_folder argument for RASSData class must be absolute, it must start with '/'.")
+            #if not root_folder.startswith("/"):
+            #    raise Exception("root_folder argument for RASSData class must be absolute, it must start with '/'.")
 
             self.data["root_folder"] = root_folder
 

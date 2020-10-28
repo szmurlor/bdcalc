@@ -188,12 +188,13 @@ def do_run(args):
         roiName = rtss.StructureSetROISequence[i].ROIName
         log.info(f"Reading contours for {roiName} from DICOM")
 
-        myROIs.append(MyRoi(dicomutils.findContours(rtss, rtss.StructureSetROISequence[i].ROINumber),
-                            roiName, float(tBeam.PixelSpacing[0]) / 1000.0))
+        contours = dicomutils.findContours(rtss, rtss.StructureSetROISequence[i].ROINumber)
+        if len(contours) > 0:
+            myROIs.append(MyRoi(contours, roiName, float(tBeam.PixelSpacing[0]) / 1000.0))
 
-        if ("body" in roiName.lower() or "skin" in roiName.lower() or "outline" in roiName.lower()) and (idxROIBody == -1):
-            idxROIBody = i
-            log.info("Found ROI body (or skin): idx = %d" % idxROIBody)
+            if ("body" in roiName.lower() or "skin" in roiName.lower() or "outline" in roiName.lower()) and (idxROIBody == -1):
+                idxROIBody = i
+                log.info("Found ROI body (or skin): idx = %d" % idxROIBody)
 
     if idxROIBody == -1:
         raise Exception("The structure file does not contain any structure with 'body', 'outline' or 'skin' in the name.")

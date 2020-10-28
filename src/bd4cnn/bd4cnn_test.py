@@ -3,6 +3,7 @@ import os
 from bdfileutils import read_ndarray
 from rass import RASSData
 import matplotlib.pyplot as plt
+from matplotlib import cm
 import numpy as np
 import json
 
@@ -11,10 +12,11 @@ rass_data = RASSData(root_folder=sys.argv[1])
 # ct[z,y,x]
 ct = read_ndarray(rass_data.output("approximated_ct.nparray"))
 for i in range(ct.shape[0]):
-    plt.imsave(rass_data.output(f"ct_{i}.png"), ct[i,:,:])
+    plt.imsave(rass_data.output(f"ct_{i}.png"), ct[i,:,:], cmap = cm.gray)
 
 # doses[z,y,x]
 doses = read_ndarray(rass_data.output("total_doses.nparray"))
+doses = np.round(doses/np.max(doses) * 32)
 for i in range(doses.shape[0]):
     plt.imsave(rass_data.output(f"doses_{i}.png"), doses[i,:,:])
 

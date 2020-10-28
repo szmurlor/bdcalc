@@ -4,6 +4,7 @@ import os
 import pydicom
 import numpy as np
 from datetime import datetime
+import logging as log
 
 """ http://www.dicomlibrary.com/dicom/sop/ """
 CT_SOPClassUID = '1.2.840.10008.5.1.4.1.1.2'
@@ -75,14 +76,17 @@ def findContours(dataset, number):
     if hasattr(dataset, 'ROIContourSequence'):
         for roi in dataset.ROIContourSequence:
             if roi.ReferencedROINumber == number:
-                for contour in roi.ContourSequence:
-                    if contour.ContourGeometricType != 'CLOSED_PLANAR':
-                        continue
-                    data = np.array(contour.ContourData)
-                    n = data.shape[0]
-                    coords = np.reshape(data, (n//3, 3) )
-                    coords = coords.astype(np.float)
-                    contours.append(coords)
+                if hasattr(roi, 'ContourSequence'):
+                    for contour in roi.ContourSequence:
+                        if contour.ContourGeometricType != 'CLOSED_PLANAR':
+                            continue
+                        data = np.array(contour.ContourData)
+                        n = data.shape[0]
+                        coords = np.reshape(data, (n//3, 3) )
+                        coords = coords.astype(np.float)
+                        contours.append(coords)
+                else:
+                    log.warn(f"ROI: {number} doesn't have attribute ContourSequence.")
     return contours
 
 
