@@ -148,7 +148,7 @@ def do_run(args):
         print(yfrom)
         ref_slice_cropped_to_max = np.zeros( (final_shape_max[1], final_shape_max[2]))
 
-        ref_slice_cropped_to_max[ yfrom:yfrom+ref_slice.shape[0],xfrom:xfrom+ref_slice.shape[1]] = ref_slice
+        ref_slice_cropped_to_max[ yfrom:yfrom+ref_slice.shape[0],xfrom:xfrom+ref_slice.shape[1] ] = ref_slice
         plt.imsave((f"{root_folder}/ref_slice_{sub}_cropped_to_max.png"), ref_slice_cropped_to_max)
 
 
@@ -168,6 +168,7 @@ def do_run(args):
                 marks = read_ndarray(rd.output(f"roi_marks_{rname}.nparray"), dtype=np.int32) # mniejszy
                 b = (marks == 1) # gdzie wstawic ta wartosc?
 
+                # rozmiar marks jest taki sam jak tmp
                 tmp = roi_marks_mapped_full[:, yfrom:yfrom+ref_slice.shape[0], xfrom:xfrom+ref_slice.shape[1]]
                 tmp[b] = rvalue
                 roi_marks_mapped_full[:, yfrom:yfrom+ref_slice.shape[0],xfrom:xfrom+ref_slice.shape[1]] = tmp
