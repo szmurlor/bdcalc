@@ -9,6 +9,7 @@ import logging as log
 from bdfileutils import read_ndarray
 from rass import RASSData
 from PIL import Image
+from matplotlib import cm
 
 import bd4cnn
 
@@ -175,7 +176,7 @@ def do_run(args):
 
             for i in range(roi_marks_mapped_full.shape[0]):
                 plt.imsave(rd.output(f"roi_marks_mapped_{i}.png", "roi_mapped_to_max"), roi_marks_mapped_full[i,:,:])
-                pil_im = Image.fromarray(roi_marks_mapped_full[i,:,:].astype(np.uint32))
+                pil_im = Image.fromarray(roi_marks_mapped_full[i,:,:].astype(np.uint8))
                 pil_im.save(rd.output(f"pil_im_{i}.png", "roi_mapped_to_max"))
 
 
@@ -183,15 +184,15 @@ def do_run(args):
             doses_full[:, yfrom:yfrom+ref_slice.shape[0],xfrom:xfrom+ref_slice.shape[1]] = doses
             for i in range(doses_full.shape[0]):
                 plt.imsave(rd.output(f"doses_{i}.png", "doses_to_max"), doses_full[i,:,:])
-                pil_im = Image.fromarray(doses_full[i,:,:].astype(np.uint32))
+                pil_im = Image.fromarray(doses_full[i,:,:].astype(np.uint8))
                 pil_im.save(rd.output(f"pil_im_{i}.png", "doses_to_max"))
 
 
             ct_full = np.zeros( (doses.shape[0], final_shape_max[1], final_shape_max[2]) )
             ct_full[:, yfrom:yfrom+ref_slice.shape[0],xfrom:xfrom+ref_slice.shape[1]] = ct
             for i in range(ct_full.shape[0]):
-                plt.imsave(rd.output(f"doses_{i}.png", "ct_to_max"), ct_full[i,:,:])
-                pil_im = Image.fromarray(ct_full[i,:,:].astype(np.uint32))
+                plt.imsave(rd.output(f"doses_{i}.png", "ct_to_max"), ct_full[i,:,:], cmap=cm.gray)
+                pil_im = Image.fromarray(ct_full[i,:,:].astype(np.uint8))
                 pil_im.save(rd.output(f"pil_im_{i}.png", "ct_to_max"))
 
         else:

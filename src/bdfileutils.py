@@ -6,7 +6,7 @@ import logging
 log = logging.getLogger(__name__) 
 #formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 #log.setFormater(formatter)
-log.setLevel(level=logging.WARN)
+log.setLevel(level=logging.DEBUG)
 
 def save_ndarray(fname, data):
     """

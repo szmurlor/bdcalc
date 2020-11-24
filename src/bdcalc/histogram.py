@@ -3,6 +3,7 @@ from sys import argv
 import numpy as np
 import re
 import os
+import argparse
 
 import time
 
@@ -289,37 +290,62 @@ class DosesMain:
 
 
 if __name__ == '__main__':
-    if len(argv) < 2:
-        print('Usage: %s <mainfile> [histogram|fluences] [-of override_fluences_filename] [-od output_folder] --preview_fluence --save_png_fluence' % argv[0])
-        exit()
 
-    path = os.path.dirname(argv[1])
-    main = DosesMain(argv[1])
+    parser = argparse.ArgumentParser(description="Utility for calculation of histograms or fluence maps, depending on the command.")
+    parser.add_argument("command", help="The operation which should be done, supported values are:  histogram, fluences, histograms_cnn")
+    parser.add_argument("--mainfile", dest="mainfile", help="Full path to main file with description of the Radiotherapy data case")
+    parser.add_argument("--od", dest="override_directory", help="Change the directory where the result should be saved")
+    parser.add_argument("--of", dest="override_fluences_filename", help="Change the filename core part for fluence maps")
+    parser.add_argument("--preview_fluence", dest="preview_fluence", type=bool, help="Should the fluences be previewable")
+    parser.add_argument("--save_png_fluence", dest="save_png_fluence", type=bool, help="Save fluence maps also to PNG images")
 
-    if "-of" in argv:
-        idx = argv.index("-of")
-        main.override_fluences_filename = argv[idx+1]
+    parser.add_argument("--rois_file", dest="rois_file", help="Name of the nparray format file (custom format) to read information about rois. This should be 3D matrix of integers.")
+    parser.add_argument("--doses_file", dest="doses_file", help="Name of the nparray format file (custom format) to read information about doses. This should be 3D matrix of floats.")
 
-    if "-od" in argv:
-        idx = argv.index("-od")
-        main.override_output_folder = argv[idx+1]
+    args = parser.parse_args()    
 
-    if "--preview_fluence" in argv:
-        print("Previewing fluences")
-        main.preview_fluence = True
+    #if len(argv) < 2:
+    #    print('Usage: %s <mainfile> [histogram|fluences] [-of override_fluences_filename] [-od output_folder] --preview_fluence --save_png_fluence' % argv[0])
+    #    exit()
 
-    if "--save_png_fluence" in argv:
-        print("Saving fluences maps to png files")
-        main.save_png_preview_fluence = True
+    if args.command in ['histogram','fluences']:
+        if args.mainfile is None:
+            raise Exception("Option --mainfile is required for histogram or fluences command.")
 
-    what = "."
-    if len(argv) > 2 and argv[2] == "histogram":
-        main.histogram()
-        what = "generating histogram."
+        # path = os.path.dirname(argv[1])
+        print(f"Reading main file from {args.mainfile}")
+        main = DosesMain(args.mainfile)
 
-    if len(argv) > 2 and argv[2] == "fluences":
-        main.fluences()
-        what = "generating fluence maps."
+        if "-of" in argv:
+            idx = argv.index("-of")
+            main.override_fluences_filename = argv[idx+1]
+
+        if "-od" in argv:
+            idx = argv.index("-od")
+            main.override_output_folder = argv[idx+1]
+
+        if "--preview_fluence" in argv:
+            print("Previewing fluences")
+            main.preview_fluence = True
+
+        if "--save_png_fluence" in argv:
+            print("Saving fluences maps to png files")
+            main.save_png_preview_fluence = True
+
+        what = "."
+        if len(argv) > 2 and argv[2] == "histogram":
+            main.histogram()
+            what = "generating histogram."
+
+        if len(argv) > 2 and argv[2] == "fluences":
+            main.fluences()
+            what = "generating fluence maps."
+    elif args.command in ['histogram_cnn']:
+        print(f"Starting calcualtion of histograms for results from CNN")
+        print(f"Input file with roi markers: {args.rois_file}")
+        print(f"Input file with doses: {args.doses_file}")
+    else:
+        print(f"Error! Unrecognized command: {args.command}. Valid values are: histogram, fluences, histogram_cnn")
 
 
-    print("Finished %s" % what)
+    print("Finished %s" % args.command)
