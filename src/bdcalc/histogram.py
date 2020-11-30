@@ -4,15 +4,21 @@ import numpy as np
 import re
 import os
 import argparse
+import json
 
 import time
 
 
-def histogram(doses, markerArray, sid, fname, scale, npts, dmax):
+def histogram(doses, markerArray, sid, fname=None, scale=1.0, npts=100, dmax=None):
     start = time.time()
+    if dmax is None:
+        dmax = np.max(doses)
     d = doses[(markerArray & sid) == sid]
     if len(d) < 1:
-        return (0, 0, 0)
+        if fname is not None:
+            return (0, 0, 0)
+        else:
+            return (0, 0, 0, 0)
 
     vol = len(d)
     hist = [(0., 100.)]
@@ -22,15 +28,19 @@ def histogram(doses, markerArray, sid, fname, scale, npts, dmax):
         v = 1. - (i - 1.) / vol
         hist.append((scale * treshold, v * 100.))
 
-    f = open(fname, 'w')
-    for p in hist:
-        f.write('%f %f\n' % p)
-    f.close()
+    if fname is not None:
+        f = open(fname, 'w')
+        for p in hist:
+            f.write('%f %f\n' % p)
+        f.close()
 
     end = time.time()
     print("Histogram generated in %f seconds to the file %s." % (end - start, fname))
 
-    return np.min(d), np.average(d), np.max(d)
+    if fname is not None:
+        return np.min(d), np.average(d), np.max(d)
+    else:
+        return np.min(d), np.average(d), np.max(d), hist
 
 
 class DosesMain:
@@ -288,11 +298,83 @@ class DosesMain:
         cols = fin.readline().split()
         return float(cols[0])
 
+def max_bit_roi(num):
+    b = 0
+    for i in range(32):
+        if num >= 2**i:
+            b = 2**i
+    return b
+
+def histogram_cnn(args, doses_dtype=np.uint8):
+    print(f"Starting calculation of histograms for results from CNN")
+    if (args.rois_file is None):
+        raise Exception("--rois_file option is required for histogram_cnn command.")
+    if (args.doses_file is None):
+        raise Exception("--doses_file option is required for histogram_cnn command.")
+
+    print(f"Input file with roi markers: {args.rois_file}")
+    print(f"Input file with doses: {args.doses_file}")
+
+    from bdfileutils import read_ndarray
+
+    rois = read_ndarray(args.rois_file, dtype=np.uint32)
+    doses = read_ndarray(args.doses_file, dtype=doses_dtype)
+
+    roi_mapping = None
+    m = {}
+    mapping = {}
+    valid_names = []
+    if hasattr(args, "roi_mapping"):
+        with open(args.roi_mapping) as fin:
+            m.update(json.load(fin))
+        for (rn, rv) in m.items():
+            mapping[int(rv)] = rn
+            valid_names.append(rn)
+
+    names = {}
+    if hasattr(args, "roi_sids"):
+        with open(args.roi_sids) as f:
+            for line in f:
+                n,sid = line.split(":")
+                names[int(sid)] = n
+
+    print(mapping)
+    print(names)
+
+    # debugging
+    #import matplotlib.pyplot as plt
+    #plt.imshow( rois[88,:,:] )
+    #plt.show()
+    #plt.imshow( doses[88,:,:] )
+    #plt.show()
+    print(np.max(doses))
+
+    print(f"Orginal rois shape: {rois.shape}")
+    print(f"Predicted doses by CNN: {doses.shape}")
+
+    rois_f = rois.flatten()
+    doses_f = doses.flatten()
+
+    max_roi_bit = np.max(np.array(list(names.keys())))
+
+    hist = []
+    for sid in names.keys():
+        name = names[sid] 
+        if name in valid_names:
+            print(f"Analysing sid: {sid}")
+            mind,avgd,maxd,h = histogram(doses_f, rois_f,sid, fname=None)
+            print(f"{mind},{avgd},{maxd}")
+            hist.append(h)
+        else:
+            print(f"Skipping: {name}")
+
+    return (rois, doses, hist)
+
 
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="Utility for calculation of histograms or fluence maps, depending on the command.")
-    parser.add_argument("command", help="The operation which should be done, supported values are:  histogram, fluences, histograms_cnn")
+    parser.add_argument("command", help="The operation which should be done, supported values are:  histogram, fluences, histogram_cnn")
     parser.add_argument("--mainfile", dest="mainfile", help="Full path to main file with description of the Radiotherapy data case")
     parser.add_argument("--od", dest="override_directory", help="Change the directory where the result should be saved")
     parser.add_argument("--of", dest="override_fluences_filename", help="Change the filename core part for fluence maps")
@@ -332,18 +414,15 @@ if __name__ == '__main__':
             print("Saving fluences maps to png files")
             main.save_png_preview_fluence = True
 
-        what = "."
-        if len(argv) > 2 and argv[2] == "histogram":
+        if args.command == "histogram":
             main.histogram()
-            what = "generating histogram."
 
-        if len(argv) > 2 and argv[2] == "fluences":
+        if args.command == "fluences":
             main.fluences()
-            what = "generating fluence maps."
+
     elif args.command in ['histogram_cnn']:
-        print(f"Starting calcualtion of histograms for results from CNN")
-        print(f"Input file with roi markers: {args.rois_file}")
-        print(f"Input file with doses: {args.doses_file}")
+        histogram_cnn(args)
+
     else:
         print(f"Error! Unrecognized command: {args.command}. Valid values are: histogram, fluences, histogram_cnn")
 

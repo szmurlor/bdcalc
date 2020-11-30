@@ -6,7 +6,7 @@ import json
 import argparse
 import logging as log
 
-from bdfileutils import read_ndarray
+from bdfileutils import read_ndarray, save_ndarray
 from rass import RASSData
 from PIL import Image
 from matplotlib import cm
@@ -25,7 +25,12 @@ required_files = [
 def do_run(args):
     root_folder=args.root_folder
 
-    subs = next(os.walk(root_folder))[1]
+    if hasattr(args,'single') and args.single:
+        print(r"Single folder: {args.root_folder}")
+        subs = ["."]
+    else:
+        subs = next(os.walk(root_folder))[1]
+
     for sub in subs:
         folder = os.path.join(root_folder, sub)
         rd = RASSData(root_folder=folder)
@@ -164,6 +169,7 @@ def do_run(args):
 
             # zetów jest tyle co w roi_marks.shape[0], natomiast rozmiary x i y są z final_shape_max
             roi_marks_mapped_full = np.zeros( (roi_marks.shape[0], final_shape_max[1], final_shape_max[2]) )
+            roi_marks_original_full = np.zeros( (roi_marks.shape[0], final_shape_max[1], final_shape_max[2]) )
                 
             for (rvalue, rname) in lst:
                 marks = read_ndarray(rd.output(f"roi_marks_{rname}.nparray"), dtype=np.int32) # mniejszy
@@ -174,11 +180,16 @@ def do_run(args):
                 tmp[b] = rvalue
                 roi_marks_mapped_full[:, yfrom:yfrom+ref_slice.shape[0],xfrom:xfrom+ref_slice.shape[1]] = tmp
 
+            roi_marks_original_full[:, yfrom:yfrom+ref_slice.shape[0],xfrom:xfrom+ref_slice.shape[1]] = roi_marks
+
             for i in range(roi_marks_mapped_full.shape[0]):
                 plt.imsave(rd.output(f"roi_marks_mapped_{i}.png", "roi_mapped_to_max"), roi_marks_mapped_full[i,:,:])
                 pil_im = Image.fromarray(roi_marks_mapped_full[i,:,:].astype(np.uint8))
                 pil_im.save(rd.output(f"pil_im_{i}.png", "roi_mapped_to_max"))
-
+            
+            StopAsyncIteration
+            save_ndarray(rd.output("rois_marks_original.nparray", "roi_mapped_to_max"),roi_marks_original_full.astype(np.int32))
+            save_ndarray(rd.output("rois_marks_mapped.nparray", "roi_mapped_to_max"),roi_marks_mapped_full.astype(np.int32))
 
             doses_full = np.zeros( (doses.shape[0], final_shape_max[1], final_shape_max[2]) )
             doses_full[:, yfrom:yfrom+ref_slice.shape[0],xfrom:xfrom+ref_slice.shape[1]] = doses
@@ -186,6 +197,7 @@ def do_run(args):
                 plt.imsave(rd.output(f"doses_{i}.png", "doses_to_max"), doses_full[i,:,:])
                 pil_im = Image.fromarray(doses_full[i,:,:].astype(np.uint8))
                 pil_im.save(rd.output(f"pil_im_{i}.png", "doses_to_max"))
+            save_ndarray(rd.output(f"doses_to_max.nparray", "doses_to_max"), doses_full.astype(np.float32))
 
 
             ct_full = np.zeros( (doses.shape[0], final_shape_max[1], final_shape_max[2]) )
