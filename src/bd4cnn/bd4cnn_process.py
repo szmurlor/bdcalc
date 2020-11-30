@@ -187,7 +187,6 @@ def do_run(args):
                 pil_im = Image.fromarray(roi_marks_mapped_full[i,:,:].astype(np.uint8))
                 pil_im.save(rd.output(f"pil_im_{i}.png", "roi_mapped_to_max"))
             
-            StopAsyncIteration
             save_ndarray(rd.output("rois_marks_original.nparray", "roi_mapped_to_max"),roi_marks_original_full.astype(np.int32))
             save_ndarray(rd.output("rois_marks_mapped.nparray", "roi_mapped_to_max"),roi_marks_mapped_full.astype(np.int32))
 

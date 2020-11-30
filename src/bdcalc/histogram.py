@@ -305,49 +305,43 @@ def max_bit_roi(num):
             b = 2**i
     return b
 
+
 def histogram_cnn(args, doses_dtype=np.uint8):
+    
     print(f"Starting calculation of histograms for results from CNN")
     if (args.rois_file is None):
         raise Exception("--rois_file option is required for histogram_cnn command.")
     if (args.doses_file is None):
         raise Exception("--doses_file option is required for histogram_cnn command.")
 
-    print(f"Input file with roi markers: {args.rois_file}")
-    print(f"Input file with doses: {args.doses_file}")
+    print(f"Input file with roi markers: {args.rois_file}, (assuming np.unit32)")
+    print(f"Input file with doses: {args.doses_file} (assuming {doses_dtype})")
 
     from bdfileutils import read_ndarray
 
     rois = read_ndarray(args.rois_file, dtype=np.uint32)
     doses = read_ndarray(args.doses_file, dtype=doses_dtype)
 
-    roi_mapping = None
-    m = {}
-    mapping = {}
-    valid_names = []
+    roi_mapping_name_to_cnn_index = {}
+    roi_mapping_cnn_index_to_name = {}
+    roi_names_in_cnn = []
     if hasattr(args, "roi_mapping"):
         with open(args.roi_mapping) as fin:
-            m.update(json.load(fin))
-        for (rn, rv) in m.items():
-            mapping[int(rv)] = rn
-            valid_names.append(rn)
+            roi_mapping_name_to_cnn_index.update(json.load(fin))
+        for (rn, rv) in roi_mapping_name_to_cnn_index.items():
+            roi_mapping_cnn_index_to_name[int(rv)] = rn
+            roi_names_in_cnn.append(rn)
 
-    names = {}
+    roi_sids_to_names = {}
     if hasattr(args, "roi_sids"):
         with open(args.roi_sids) as f:
             for line in f:
                 n,sid = line.split(":")
-                names[int(sid)] = n
+                roi_sids_to_names[int(sid)] = n
 
-    print(mapping)
-    print(names)
-
-    # debugging
-    #import matplotlib.pyplot as plt
-    #plt.imshow( rois[88,:,:] )
-    #plt.show()
-    #plt.imshow( doses[88,:,:] )
-    #plt.show()
-    print(np.max(doses))
+    print(roi_mapping_cnn_index_to_name)
+    print(roi_names_in_cnn)
+    print(roi_sids_to_names)
 
     print(f"Orginal rois shape: {rois.shape}")
     print(f"Predicted doses by CNN: {doses.shape}")
@@ -355,18 +349,17 @@ def histogram_cnn(args, doses_dtype=np.uint8):
     rois_f = rois.flatten()
     doses_f = doses.flatten()
 
-    max_roi_bit = np.max(np.array(list(names.keys())))
-
     hist = []
-    for sid in names.keys():
-        name = names[sid] 
-        if name in valid_names:
-            print(f"Analysing sid: {sid}")
-            mind,avgd,maxd,h = histogram(doses_f, rois_f,sid, fname=None)
-            print(f"{mind},{avgd},{maxd}")
-            hist.append(h)
+    for sid in roi_sids_to_names.keys():
+        name = roi_sids_to_names[sid] 
+        if name in roi_names_in_cnn:
+            print(f"Analyzing sid: {sid} with name: {name}")
+            mind, avgd, maxd, h = histogram(doses_f, rois_f,sid, fname=None)
+            hist.append({"name": name, "sid": sid, 
+                        "roi_index_in_cnn": roi_mapping_name_to_cnn_index[name],   
+                        "mind": mind, "avgd": avgd, "maxd": maxd, "data": h} )
         else:
-            print(f"Skipping: {name}")
+            print(f"Skipping sid: {sid} with name: {name}")
 
     return (rois, doses, hist)
 
@@ -422,7 +415,6 @@ if __name__ == '__main__':
 
     elif args.command in ['histogram_cnn']:
         histogram_cnn(args)
-
     else:
         print(f"Error! Unrecognized command: {args.command}. Valid values are: histogram, fluences, histogram_cnn")
 
