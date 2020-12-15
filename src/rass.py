@@ -9,7 +9,7 @@ import shutil
 class RASSData:
     """ Klasa do zarządzania danymi w RASSie
 
-        Konstruktor można zaincjalizować na dwa sposoby
+        Konstruktor można zainicjalizować na dwa sposoby
         a) za pomocą ścieżki do folderu z danymi, gdzie może znajdować się plik rassdata.json,
            plik ten zawiera specyfikację lokalizacji plików, które mogą być wykorzystywane przez
            klientów obiektu RASSData
@@ -68,6 +68,9 @@ class RASSData:
             if os.path.isdir(rassdata):
                 self.data.update(json.load(rassdata))
                 self.rassdata_configfile = rassdata
+
+    def root_folder(self):
+        return self.data["root_folder"]
 
     def _get_folder(self, ftype, fname=None, subfolder=None):
         if fname is None:

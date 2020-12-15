@@ -5,6 +5,7 @@ import numpy as np
 import json
 import argparse
 import logging as log
+import pathlib
 
 from bdfileutils import read_ndarray, save_ndarray
 from rass import RASSData
@@ -23,7 +24,7 @@ required_files = [
 ]
 
 def do_run(args):
-    root_folder=args.root_folder
+    root_folder = args.root_folder
 
     if hasattr(args,'single') and args.single:
         print(r"Single folder: {args.root_folder}")
@@ -42,7 +43,7 @@ def do_run(args):
                 files_exist = False
         
         if not files_exist:
-            log.info(f"Brakuje plikow w folderze: {folder}")
+            log.info(f"Brakuje wymaganych plików w folderze: {folder}. Uruchamiam obliczenia.")
             
             ########################################################
             # Uruchamiam obliczenia w folderze folder (obiekt rd)
@@ -51,9 +52,11 @@ def do_run(args):
             args4bd4cnn.rass_data = rd
             bd4cnn.do_run(args4bd4cnn)
 
-    ##############################################################
-    # Analizuję wymiary (dimensions) - w tym celu wczytuję dawki
-    ##############################################################
+            log.info(f"Zakończyłem obliczenia w folderze: {folder}")
+
+    ####################################################################################
+    # Analizuję wymiary w wszystkich folderach (dimensions) - w tym celu wczytuję dawki
+    ####################################################################################
     adims = []
     for sub in subs:
         rd = RASSData(root_folder=os.path.join(root_folder, sub))
@@ -62,36 +65,46 @@ def do_run(args):
 
     nadims = np.array(adims)
     
-    #minz = np.min(nadims[:,0])
-    #miny = np.min(nadims[:,1])
-    #minx = np.min(nadims[:,2])
-    #final_shape_min = (minz, miny, minx)
     final_shape_min=np.min(nadims, axis=0)
-    log.info(f"final shape min: {final_shape_min}")
+    log.info(f"W przypadku dopasowania do najmniejszego rozmiaru: final shape min: {final_shape_min}")
 
-    #maxz = np.max(nadims[:,0])
-    #maxy = np.max(nadims[:,1])
-    #maxx = np.max(nadims[:,2])
-    #final_shape_max = (maxz, maxy, maxx)
     final_shape_max=np.max(nadims, axis=0) # [z,y,x]
-    log.info(f"final shape max: {final_shape_max}")
+    log.info(f"W przypadku dopasowania do największego rozmiaru: final shape max: {final_shape_max}")
 
-
-    ##############################################################
-    # Przycinam lub rozszerzam obszary ROIów
-    ##############################################################
+    ################################################################
+    # Generuje dane z przycinamiem lub rozszerzaniem obszarów ROIów
+    ################################################################
     for sub in subs:
         folder = os.path.join(root_folder, sub)
         rd = RASSData(root_folder=folder)
 
+        meta_data = {}
+        if os.path.isfile(rd.input("meta_data.json")):
+            with open(rd.input("meta_data.json")) as fin:
+                meta_data.update(json.load(fin))
+
+        patient_id = meta_data["patient_id"] if "patient_id" in meta_data else sub
+
+        log.info(f"Analizuję pacjenta: {patient_id}")
+
+        log.info("Wczytuję dawki")
         doses = read_ndarray(rd.output("total_doses.nparray"))
 
+        ########################################################################
+        # Wykonuję progowanie dawek (czyli wartości przewidywanych)
+        # Normalizacja dawki do wartości maksymalnej dawki dla danego pacjenta
+        ########################################################################
+        log.info(f"Proguję dawki do {args.dose_levels} poziomów względem wartości maksymalnej: {np.max(doses)}")
         doses = np.round(doses/np.max(doses) * args.dose_levels)
 
+        log.info("Wczytuję informację o znacznikach ROI.")
         roi_marks = read_ndarray(rd.output("roi_marks.nparray"), dtype=np.int64)
+
+        log.info("Wczytuję informację o danych CT.")
         ct = read_ndarray(rd.output("approximated_ct.nparray"))
         
-        # wczytuję outline aby zbudować boundingbox, którego ostatecznie nie uzywam, ale łądnie wygląda
+        # wczytuję outline aby zbudować boundingbox, którego ostatecznie nie uzywam, ale ładnie wygląda
+        log.info("Wczytuję Patient Outline do ładnych wizualizacji.")
         marks_patient_outline = read_ndarray(rd.output(f"roi_marks_Patient Outline.nparray"), dtype=np.int32)
 
         # środkowy slice
@@ -116,7 +129,7 @@ def do_run(args):
         ref_slice[:, bbox[1][1]] = 4
 
         # zapisuję referencyjny obrazek do głównego folderu symulacji
-        plt.imsave((f"{root_folder}/ref_slice_{sub}.png"), ref_slice)
+        plt.imsave((f"{root_folder}/ref_slice_{patient_id}.png"), ref_slice)
 
         ################################################################################################
         # Określam rozmiary dla każdego obrazka jak obcinać zgodnie z algorytmem
@@ -132,13 +145,13 @@ def do_run(args):
         # tutaj jadę do końca do dołu obrazka
         yto = ref_slice.shape[0] 
 
-        log.debug(f"[{sub}] min_xfrom: {xfrom}")
-        log.debug(f"[{sub}] min_xto: {xto}")
-        log.debug(f"[{sub}] min_yfrom: {yfrom}")
-        log.debug(f"[{sub}] min_yto: {yto}")
+        log.debug(f"[{patient_id}] min_xfrom: {xfrom}")
+        log.debug(f"[{patient_id}] min_xto: {xto}")
+        log.debug(f"[{patient_id}] min_yfrom: {yfrom}")
+        log.debug(f"[{patient_id}] min_yto: {yto}")
 
         ref_slice_cropped_to_min = ref_slice[ yfrom:yto, xfrom:xto]
-        plt.imsave((f"{root_folder}/ref_slice_{sub}_cropped_to_min.png"), ref_slice_cropped_to_min)
+        plt.imsave((f"{root_folder}/ref_slice_{patient_id}_cropped_to_min.png"), ref_slice_cropped_to_min)
 
 
         ################################################################################################
@@ -155,7 +168,7 @@ def do_run(args):
         ref_slice_cropped_to_max = np.zeros( (final_shape_max[1], final_shape_max[2]))
 
         ref_slice_cropped_to_max[ yfrom:yfrom+ref_slice.shape[0],xfrom:xfrom+ref_slice.shape[1] ] = ref_slice
-        plt.imsave((f"{root_folder}/ref_slice_{sub}_cropped_to_max.png"), ref_slice_cropped_to_max)
+        plt.imsave((f"{root_folder}/ref_slice_{patient_id}_cropped_to_max.png"), ref_slice_cropped_to_max)
 
 
         if (rd.input_exists("roi_mapping.json")):
@@ -182,6 +195,7 @@ def do_run(args):
 
             roi_marks_original_full[:, yfrom:yfrom+ref_slice.shape[0],xfrom:xfrom+ref_slice.shape[1]] = roi_marks
 
+            log.info(f"Rozpoczynam zapisywanie {roi_marks_mapped_full.shape[0]} plików z obrazami ROI (zmapowane) w formacie uint8")
             for i in range(roi_marks_mapped_full.shape[0]):
                 plt.imsave(rd.output(f"roi_marks_mapped_{i}.png", "roi_mapped_to_max"), roi_marks_mapped_full[i,:,:])
                 pil_im = Image.fromarray(roi_marks_mapped_full[i,:,:].astype(np.uint8))
@@ -192,6 +206,8 @@ def do_run(args):
 
             doses_full = np.zeros( (doses.shape[0], final_shape_max[1], final_shape_max[2]) )
             doses_full[:, yfrom:yfrom+ref_slice.shape[0],xfrom:xfrom+ref_slice.shape[1]] = doses
+
+            log.info(f"Rozpoczynam zapisywanie {doses_full.shape[0]} plików z dawkami (progowane do {args.dose_levels} poziomów) w formacie uint8 będą pliki pil")
             for i in range(doses_full.shape[0]):
                 plt.imsave(rd.output(f"doses_{i}.png", "doses_to_max"), doses_full[i,:,:])
                 pil_im = Image.fromarray(doses_full[i,:,:].astype(np.uint8))
@@ -199,13 +215,43 @@ def do_run(args):
             save_ndarray(rd.output(f"doses_to_max.nparray", "doses_to_max"), doses_full.astype(np.float32))
 
 
+            log.info(f"Rozpoczynam zapisywanie {doses_full.shape[0]} plików z danymi CT w formacie uint8 będą pliki pil")
             ct_full = np.zeros( (doses.shape[0], final_shape_max[1], final_shape_max[2]) )
             ct_full[:, yfrom:yfrom+ref_slice.shape[0],xfrom:xfrom+ref_slice.shape[1]] = ct
             for i in range(ct_full.shape[0]):
-                plt.imsave(rd.output(f"doses_{i}.png", "ct_to_max"), ct_full[i,:,:], cmap=cm.gray)
+                plt.imsave(rd.output(f"ct_{i}.png", "ct_to_max"), ct_full[i,:,:], cmap=cm.gray)
                 pil_im = Image.fromarray(ct_full[i,:,:].astype(np.uint8))
                 pil_im.save(rd.output(f"pil_im_{i}.png", "ct_to_max"))
 
+
+            log.info(f"Rozpoczynam zapisywanie {doses_full.shape[0]} plików z danymi o obrazach ROI i dawek w formacie uint8 będą pliki pil dla sieci Mask-RCNN")
+            output = os.path.join(rd.root_folder(),'output','mask-rcnn')
+            pathlib.Path(output).mkdir(exist_ok=True)
+            for i in range(doses_full.shape[0]):
+                image_id = f"{patient_id}_{i}"
+                output_image_id_path = os.path.join(output, image_id)
+                pathlib.Path(output_image_id_path).mkdir(exist_ok=True)
+
+                output_pngs = os.path.join(output_image_id_path, "pngs")                
+                pathlib.Path(output_pngs).mkdir(exist_ok=True)
+                plt.imsave(os.path.join(output_pngs, f"{image_id}_rois.png"), roi_marks_mapped_full[i,:,:]) # obrazek z roiami
+
+                output_images = os.path.join(output_image_id_path, "images")
+                pathlib.Path(output_images).mkdir(exist_ok=True)
+                pil_im = Image.fromarray(roi_marks_mapped_full[i,:,:].astype(np.uint8))
+                pil_im.save(os.path.join(output_images, f"pil_{image_id}.png"))
+
+                output_masks = os.path.join(output_image_id_path, "masks")
+                pathlib.Path(output_masks).mkdir(exist_ok=True)
+                for level in range(int(args.dose_levels)):
+                    level_mask = doses_full[i,:,:].astype(np.int32)
+                    level_mask[ level_mask != level ] = 0
+                    level_mask[ level_mask == level ] = 1
+                    # log.info(f"Img: {i} Level: {level} Liczba 0: {np.sum(level_mask==0)}, liczba 1: {np.sum(level_mask==1)}")
+                    plt.imsave(os.path.join(output_pngs, f"{image_id}_{level}.png"), level_mask) # obrazek z roiami
+
+                    pil_im = Image.fromarray(level_mask.astype(np.uint8))
+                    pil_im.save(os.path.join(output_masks, f"pil_{image_id}_{level}.png"))
         else:
             log.warn(f"Pomijam katalog {sub}, ponieważ w katalogu input brakuje pliku `roi_mapping.json`")
 
@@ -217,6 +263,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Przechodzi przez podfoldery i przetwarza dane przypadków do postaci, która może być wykorzystana w uczeniu sieci neuronowych (CNN)")
     parser.add_argument('root_folder', help="główny folder, który zawiera analizowane podfoldery")
     parser.add_argument('--dose_levels', type=float, help="liczba poziomów dawek w wyjściowych plikach png", default=255)
+    parser.add_argument('-s', "--single", action="store_true", help="gdy podany, to będzie analizować tylko jeden folder bez poszukiwania głęboko")
     args = parser.parse_args()
 
     do_run(args)
