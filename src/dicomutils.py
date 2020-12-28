@@ -35,6 +35,7 @@ def find_ct_rs_rp_dicom(directory_name):
 
         for file in files:
             d = pydicom.read_file(file)
+            print(f"{file} - {d.SOPClassUID}")
             if CT_SOPClassUID in d.SOPClassUID:
                 ct.append(file)
 

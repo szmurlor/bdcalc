@@ -99,6 +99,7 @@ def do_run(args):
     ################################################################
     # reading doses information for beams from DICOM
     ################################################################
+    print(doseslist)
     beams = [dicom.read_file(f) for f in doseslist]
 
     ##################################################################
@@ -129,7 +130,8 @@ def do_run(args):
     # Sumuję dawki z poszczególnych wiązek (beams) do dawki całkowitej 
     ##################################################################
     if not singleBeam:
-        bns = beamDoses.keys()
+        print(beamDoses)
+        bns = list(beamDoses.keys())
         totalDoses = beamDoses[bns[0]].copy()
         for i in range(1, len(bns)):
             log.info(f"Adding doses from beam {i}")
