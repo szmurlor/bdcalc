@@ -122,7 +122,7 @@ class MyRoi:
 		return False
 
 	def mark(self, xb, yb, dx, dy, kmax, jmax, imax, z, marks, sid, debug=False, ctgriddata=None):
-		# print 'Marking %s by %d : [%g:%g]x[%g:%g]x[%g:%g]' % ( self.name, sid, self.xmin, self.xmax, self.ymin, self.ymax, self.z[0], self.z[self.n-1] )
+		print('Marking %s by %d : [%g:%g]x[%g:%g]x[%g:%g]' % ( self.name, sid, self.xmin, self.xmax, self.ymin, self.ymax, self.z[0], self.z[self.n-1] ))
 		fact = 0.1  # security factor
 		if ctgriddata is not None:
 			print("%s" % list(ctgriddata))

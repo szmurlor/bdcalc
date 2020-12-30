@@ -79,7 +79,11 @@ class CTVolumeData(VolumeData):
         scale = geometric_scale
         n = plan_dimensions
 
-        log.info(f"Approximating CT ({self.dimensions[0]} x {self.dimensions[1]} x {self.dimensions[2]}) grid over Planning Grid ({n[0]} x {n[1]} x {n[2]}) ...")
+        print(f"PLAAAAAAAAAAAAAAAAAAAAAAAAN Spacing: {s}")
+        print(f"PLAAAAAAAAAAAAAAAAAAAAAAAAN Origin: {o}")
+        print(f"GRIIIIIIIIIIIIIIIIIIIIIIIID Spacing: {self.spacing}")
+        print(f"GRIIIIIIIIIIIIIIIIIIIIIIIID Origin: {self.origin}")
+        print(f"Approximating CT ({self.dimensions[0]} x {self.dimensions[1]} x {self.dimensions[2]}) grid over Planning Grid ({n[0]} x {n[1]} x {n[2]}) ...")
         npar = self.getCTDataAsNumpyArray()
 
         # poprawic na    np.arange(float(n[0]))
@@ -187,9 +191,10 @@ class CTVolumeDataReader(object):
         if len(files) > 1:
             f0 = pydicom.read_file(files[0])
             f1 = pydicom.read_file(files[1])
-            st = float(f0.SliceThickness) if f0.SliceThickness != '' else 0
+            #st = float(f0.SliceThickness) if f0.SliceThickness != '' else 0
+            st = 0
             dst = list(map(float, f1.ImagePositionPatient))[2] - list(map(float, f0.ImagePositionPatient))[2]
-            log.debug("slice thickness = %g, distance = %g" % (st, dst))
+            print("slice thickness = %g, distance = %g" % (st, dst))
             self.thickness = max([st, dst])
 
         self.files = files

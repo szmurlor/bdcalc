@@ -191,8 +191,10 @@ def do_run(args):
         log.info(f"Reading contours for {roiName} from DICOM")
 
         contours = dicomutils.findContours(rtss, rtss.StructureSetROISequence[i].ROINumber)
-        if len(contours) > 0:
-            myROIs.append(MyRoi(contours, roiName, float(tBeam.PixelSpacing[0]) / 1000.0))
+        if len(contours) > 1:
+            r = MyRoi(contours, roiName, float(tBeam.PixelSpacing[0]) / 1000.0)
+            myROIs.append(r)
+            print(f"dz spacing: {dz} ")
 
             if ("body" in roiName.lower() or "skin" in roiName.lower() or "outline" in roiName.lower()) and (idxROIBody == -1):
                 idxROIBody = i
@@ -216,6 +218,8 @@ def do_run(args):
         else:
             log.info("Marking voxels for %s" % myROIs[r].name)
             log.info("CTGRID DATA %s" % list(ctgriddata))
+            log.info(f"Z COORDINATES: {np.linspace(zbase, zbase + (imax - 1) * dz, imax) / SCALE}")
+
             myROIs[r].mark(xbase / SCALE, ybase / SCALE, dx / SCALE, dy / SCALE, kmax, jmax, imax,
                            np.linspace(zbase, zbase + (imax - 1) * dz, imax) / SCALE, roi_marks, 2 ** r, ctgriddata=ctgriddata)
             myROIs[r].save_marks(fcache, roi_marks, 2 ** r)
