@@ -13,7 +13,6 @@ class VolumeData(object):
 		self.data = data
 		if data != None:
 			sx, sy, sz = data.GetSpacing()
-			# print "spacing (%g,%g,%g), thickness=%g" % ( sx, sy, sz, thickness )
 			if thickness != None and thickness != sz:
 				log.warning("Thickness corrected: %g -> %g" % (sz, thickness))
 				data.SetSpacing([sx, sy, thickness])

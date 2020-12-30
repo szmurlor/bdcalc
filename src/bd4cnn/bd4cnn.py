@@ -99,7 +99,6 @@ def do_run(args):
     ################################################################
     # reading doses information for beams from DICOM
     ################################################################
-    print(doseslist)
     beams = [dicom.read_file(f) for f in doseslist]
 
     ##################################################################
@@ -194,7 +193,6 @@ def do_run(args):
         if len(contours) > 1:
             r = MyRoi(contours, roiName, float(tBeam.PixelSpacing[0]) / 1000.0)
             myROIs.append(r)
-            print(f"dz spacing: {dz} ")
 
             if ("body" in roiName.lower() or "skin" in roiName.lower() or "outline" in roiName.lower()) and (idxROIBody == -1):
                 idxROIBody = i
@@ -217,8 +215,7 @@ def do_run(args):
             myROIs[r].countVoxels(roi_marks, 2 ** r)
         else:
             log.info("Marking voxels for %s" % myROIs[r].name)
-            log.info("CTGRID DATA %s" % list(ctgriddata))
-            log.info(f"Z COORDINATES: {np.linspace(zbase, zbase + (imax - 1) * dz, imax) / SCALE}")
+            log.debug("CTGRID DATA %s" % list(ctgriddata))
 
             myROIs[r].mark(xbase / SCALE, ybase / SCALE, dx / SCALE, dy / SCALE, kmax, jmax, imax,
                            np.linspace(zbase, zbase + (imax - 1) * dz, imax) / SCALE, roi_marks, 2 ** r, ctgriddata=ctgriddata)
@@ -252,7 +249,8 @@ def do_run(args):
 
     for r in range(0, len(myROIs)):
         d = np.array(np.bitwise_and(roi_marks, (2 ** r)) / (2 ** r), dtype=np.float32)
-        print(f"{myROIs[r].name}[{2 ** r}].size() = {np.sum(d)}")
+        log.debug(f"ROI: {myROIs[r].name}[{2 ** r}].size() = {np.sum(d)}")
+        log.info(f"Saving roi marks for {myROIs[r].name} to {rass_data.output(f'roi_marks_{myROIs[r].name}')}.vti file ...")
         VolumeData.saveVolumeGridToFile(plan_spacing, plan_dimensions, plan_origin, 
                 d, rass_data.output(f"roi_marks_{myROIs[r].name}"))
 

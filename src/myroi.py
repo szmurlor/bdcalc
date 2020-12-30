@@ -1,4 +1,5 @@
 #! /usr/bin/python
+import os
 import struct
 from matplotlib.path import Path
 from matplotlib.transforms import Bbox
@@ -6,7 +7,7 @@ from math import sqrt
 import numpy as np
 from volumedata import VolumeData
 from draw_c import draw_c
-import os
+from common import log
 
 
 class RoiView(VolumeData):
@@ -105,7 +106,6 @@ class MyRoi:
 		self.count = 0
 
 	def crossed(self, x0, y0, z0, dx, dy, dz):
-		# print ' check [%g %g]x[%g %g]x[%g %g] for %s' % ( x0, x1, y0, y1, z0, z1, self.name )
 		if z0 + dz < self.z[0] or z0 > self.z[self.n - 1]:
 			return False
 		if x0 + dx < self.xmin or x0 > self.xmax:
@@ -114,26 +114,20 @@ class MyRoi:
 			return False
 		for i in range(0, self.n):
 			if z0 <= self.z[i] <= z0 + dx:
-				# print 'testing path at %g' % ( self.z[i] )
 				if self.paths[i].intersects_bbox(Bbox.from_bounds(x0, y0, dx, dy)):
-					# print 'in %s' % ( self.name )
 					return True
-		# print 'not in %s' % ( self.name )
 		return False
 
 	def mark(self, xb, yb, dx, dy, kmax, jmax, imax, z, marks, sid, debug=False, ctgriddata=None):
-		print('Marking %s by %d : [%g:%g]x[%g:%g]x[%g:%g]' % ( self.name, sid, self.xmin, self.xmax, self.ymin, self.ymax, self.z[0], self.z[self.n-1] ))
+		log.info('Marking %s by %d : [%g:%g]x[%g:%g]x[%g:%g]' % ( self.name, sid, self.xmin, self.xmax, self.ymin, self.ymax, self.z[0], self.z[self.n-1] ))
 		fact = 0.1  # security factor
 		if ctgriddata is not None:
-			print("%s" % list(ctgriddata))
 			(ctxb, ctyb, ctdx, ctdy, ctnx, ctny) = list(ctgriddata)
 		else:
 			(ctdx, ctdy) = (dx, dy)
 		dmin = fact * min(dx, dy, ctdx, ctdy)
 		toFill = set()
 		iprev = -1 # used when the contours are coarser than the grid z-layers
-		if debug:
-			print('z in grid: <%g,%g>, z in ROI: <%g,%g>' % (z[0], z[-1], self.z[0], self.z[-1]))
 		last_z = None
 		do_mark = True
 		sid_to_check = sid
@@ -150,17 +144,11 @@ class MyRoi:
 				sid_to_check_inverted = 0
 
 			i = int((self.z[l] - z[0]) / (z[1] - z[0]))
-			if debug:
-				print('i=%d' % i)
 			if i < 0 or i >= imax:
-				if debug:
-					print('%d not in <0,%d>' % (i, imax))
 				continue
 			vertices = self.contours[l][:, 0:2]
 			# mark contour
 			vp = vertices[-1]
-			if debug:
-				print('# vertices: %d' % len(vertices))
 			for v in vertices:  # loop over segments vp-v
 				n = int(sqrt((v[0] - vp[0]) ** 2 + (v[1] - vp[1]) ** 2) / dmin) + 1
 				s = [v]
@@ -312,7 +300,7 @@ class MyRoi:
 
 	# noinspection PyUnresolvedReferences
 	def save_marks(self, fname, marks, sid):
-		print("Saving marks to cache file: %s" % fname)
+		log.debug("Saving marks to cache file: %s" % fname)
 		interesting = (marks & sid) == sid
 		bcode = struct.pack("i", -1)
 		bnint = struct.pack("i", np.prod(interesting.shape))
@@ -344,14 +332,13 @@ class MyRoi:
 				bsid = fin.read(4)
 				sid = struct.unpack("i", bsid)[0]
 		
-			print("nint = %d" % (nint))
 			if nint == np.prod(marks.shape):
 				interesting = np.fromfile(fin, np.bool_, nint)
 				interesting = np.reshape(interesting, marks.shape)
 				marks[interesting] += sid
 				res = True
 			else:
-				print("ERROR! Size of markscache (%d) not equal size of marks (%d)" % (nint, np.prod(marks.shape)[0]))
+				log.error("Size of markscache (%d) not equal size of marks (%d)" % (nint, np.prod(marks.shape)[0]))
 
 			fin.close()
 

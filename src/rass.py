@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import json
 import os
-import logging
+from common import log
 
 import shutil
 
@@ -35,7 +35,6 @@ class RASSData:
     RASS_CONFIG_FILE = "rassdata.json"
 
     def __init__(self, database_id=None, database=None, rassdata=None, root_folder=None):
-        self.log = logging.getLogger("RASSData")
         self.data = {
             "root_folder": "",
             "files": {
@@ -103,10 +102,10 @@ class RASSData:
                     if os.path.exists(sourcefile) and os.path.isfile(sourcefile):
                         shutil.copy(sourcefile, file)
                     else:
-                        logging.error("The sourcefile %s defined in %s file for %s does not exist." % (sourcefile, self.rassdata_configfile, fname))
+                        log.error("The sourcefile %s defined in %s file for %s does not exist." % (sourcefile, self.rassdata_configfile, fname))
 
             if not os.path.isfile(file) and not os.path.isdir(file):
-                logging.error("The file %s does not exist and is not defined in %s file." % (file, self.rassdata_configfile))
+                log.info("The file %s does not exist and is not defined in %s file." % (file, self.rassdata_configfile))
                 file = "File %s does not exist and is not defined in rassdata.json" % fname
 
         return file
@@ -139,21 +138,21 @@ class RASSData:
         if os.path.isdir(folder):
             self.clean_folder(folder)
         else:
-            self.log.warning("Trying to clean processing data when the out data folder (%s) does not exist." % folder)
+            log.warning("Trying to clean processing data when the out data folder (%s) does not exist." % folder)
 
     def clean_in_data(self):
         folder = self.input()
         if os.path.isdir(folder):
             self.clean_folder(folder)
         else:
-            self.log.warning("Trying to clean processing data when the in data folder (%s) does not exist." % folder)
+            log.warning("Trying to clean processing data when the in data folder (%s) does not exist." % folder)
 
     def clean_processing_data(self):
         folder = self.processing()
         if os.path.isdir(folder):
             self.clean_folder(folder)
         else:
-            self.log.warning("Trying to clean processing data when the processing data folder (%s) does not exist." % folder)
+            log.warning("Trying to clean processing data when the processing data folder (%s) does not exist." % folder)
 
     def clean_folder(self, folder):
         for the_file in os.listdir(folder):
@@ -164,7 +163,7 @@ class RASSData:
                 elif os.path.isdir(file_path):
                     shutil.rmtree(file_path)
             except Exception as e:
-                self.log.error(e)
+                log.error(e)
 
     def _init_folder(self, folder):
         if not os.path.isdir(folder):
