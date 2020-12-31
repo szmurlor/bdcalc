@@ -7,7 +7,7 @@ import shutil
 import pydicom
 import re
 
-log.basicConfig(format='%(asctime)s [%(levelname)s]: %(message)s', level=log.DEBUG)
+log.basicConfig(format='%(asctime)s [%(levelname)s]: %(message)s', level=log.INFO)
 
 def do_run(args):
     root_folder = args.root_folder
@@ -24,7 +24,7 @@ def do_run(args):
     log.debug(f"Lista folderów: {subs}")
 
     for sub in subs:
-        log.info(f"Working on subdir: {sub}")
+        log.info(f"Working on genearation of roi mapping in subdir: {sub}")
         from_sub = os.path.join(root_folder, sub)
         meta_fname = os.path.join(from_sub, "meta.json")
 
@@ -33,14 +33,16 @@ def do_run(args):
             meta.update(json.loads("".join(f.readlines())))
         log.debug(meta)
 
+        meta.pop("unmatched_rois", None)
+
         mapping = {}
         for roi in roi_mapping_config['rois']:
             key = roi['id']
             found = False
             for m in roi['matches']: 
-                log.info(m)
+                log.debug(m)
                 for roiname in meta["rois"]:
-                    log.info(roiname)
+                    log.debug(roiname)
                     if re.match(m, roiname) is not None:
                         mapping[roiname] = key
                         found = True
@@ -48,6 +50,8 @@ def do_run(args):
             if not found:
                 meta["unmatched_rois"] = ", ".join([meta["unmatched_rois"], f"Missing: {key}"]) if "unmatched_rois" in meta else f"Missing: {key}"
         
+        if "unmatched_rois" in meta:
+            log.warn(f'Unmatched rois: {meta["unmatched_rois"]}')
         with open(os.path.join(from_sub, "roi_mapping.json"), "w") as f:
             f.write(json.dumps(mapping, indent="    "))
 
