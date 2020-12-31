@@ -6,3 +6,4 @@ vmc_c/create_pareto_vmc_c.c
 vmc_c/build/lib.linux-x86_64-3.7/create_pareto_vmc_c.cpython-37m-x86_64-linux-gnu.so
 vmc_c/build/temp.linux-x86_64-3.7/create_pareto_vmc_c.o
 src/tests/CLUTTER_IM_MODULE=xim
+.vscode/settings.json
