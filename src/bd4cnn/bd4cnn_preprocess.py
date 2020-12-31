@@ -44,7 +44,9 @@ def do_run(args):
         for from_file in f:
             if from_file.endswith('.dcm'):
                 log.debug(f"Copying file: {from_file}")
-                shutil.copy(os.path.join(from_sub, from_file), os.path.join(to_sub_input_dicom, from_file))
+
+                if not os.path.exists( os.path.join(to_sub_input_dicom, from_file) ):
+                    shutil.copy(os.path.join(from_sub, from_file), os.path.join(to_sub_input_dicom, from_file))
 
                 if (from_file.startswith("RP")):
                     rp = pydicom.read_file(os.path.join(to_sub_input_dicom, from_file))
