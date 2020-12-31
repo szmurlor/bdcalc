@@ -1,0 +1,60 @@
+{
+    "rois": [ 
+    {
+        "id": 14,
+        "matches": [".*blizna.*"]
+    },
+    {
+        "id": 13,
+        "matches": [".*boost.*plan.*"]
+    },
+    {
+        "id": 12,
+        "matches": [".*boost PTV$"]
+    },
+    {
+        "id": 11,
+        "matches": [".*piers PTV-plan.*"]
+    },
+    {
+        "id": 10,
+        "matches": [".*wezly all$"]
+    },
+    {
+        "id": 9,
+        "matches": [".*kanal kreg.+5mm.*"]
+    },
+    {
+        "id": 8,
+        "matches": [".*naczynia wienc.*"]
+    },
+    {
+        "id": 7,
+        "matches": [".*serce.*"]
+    },
+    {
+        "id": 6,
+        "matches": [".*pluco P.*"]
+    },
+    {
+        "id": 5,
+        "matches": [".*pluco L.*"]
+    },
+    {
+        "id": 4,
+        "matches": [".*przelyk.*"]
+    },
+    {
+        "id": 3,
+        "matches": ["^piers$"]
+    },
+    {
+        "id": 2,
+        "matches": [".*gl.kosci ram..*"]
+    },
+    {
+        "id": 1,
+        "matches": [".*Patient Outline.*"]
+    }
+]
+}
