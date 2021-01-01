@@ -171,10 +171,14 @@ def do_run(args):
         plt.imsave((f"{root_folder}/ref_slice_{patient_id}_cropped_to_max.png"), ref_slice_cropped_to_max)
 
 
-        if (rd.input_exists("roi_mapping.json")):
+        mapping_file = rd.input("roi_mapping.json")
+        if not os.path.exists(mapping_file):
+            mapping_file = rd.root("roi_mapping.json")
+
+        if (os.path.exists(mapping_file)):
             # w obecnej wersji uzywam max
             m = {}
-            with open(rd.input("roi_mapping.json")) as fin:
+            with open(mapping_file) as fin:
                 m.update(json.load(fin))
 
             lst = [(rvalue, rname) for rname, rvalue in m.items()]

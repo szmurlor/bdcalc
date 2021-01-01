@@ -84,6 +84,18 @@ class RASSData:
 
         return "%s/%s" % (f, fname)
 
+    def root(self, fname=None, subfolder=None, check=True):
+        res = None
+        if subfolder is not None:
+            res = os.path.join(self.root_folder(), subfolder, fname)
+        else:
+            res = os.path.join(self.root_folder(), fname)
+        
+        if not os.path.exists(res):
+            raise Exception(f"Brak pliku: {res}")
+
+        return res
+
     def input(self, fname=None, subfolder=None, check=True):
         """ Jeżeli plik fname istnieje w folderze rootfolder i podfolderze subfolder,
         to jest bezpośrednio do niego zwracany uchwyt. Jak nie istnieje to plik jest kopiowany na podstawie konfiguracji
