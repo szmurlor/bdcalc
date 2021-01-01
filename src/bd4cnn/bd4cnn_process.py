@@ -56,12 +56,20 @@ def do_run(args):
 
     ####################################################################################
     # Analizuję wymiary w wszystkich folderach (dimensions) - w tym celu wczytuję dawki
+    # Dodatkowo ciągam maksymalną dawk globalnie!
     ####################################################################################
+    log.info("Finding maximum dimensions and dose value.")
     adims = []
+    max_dose_global = 0
     for sub in subs:
         rd = RASSData(root_folder=os.path.join(root_folder, sub))
         doses = read_ndarray(rd.output("total_doses.nparray"))
+        m = np.max(doses)
+        if max_dose_global < m:
+            max_dose_global = m
+            log.info(f"Updating max dose: {m}")
         adims.append(doses.shape)
+    log.info(f"Final, total max dose: {max_dose_global}")
 
     nadims = np.array(adims)
     
@@ -82,6 +90,9 @@ def do_run(args):
         if os.path.isfile(rd.input("meta_data.json")):
             with open(rd.input("meta_data.json")) as fin:
                 meta_data.update(json.load(fin))
+        if os.path.isfile(rd.root("meta.json")):
+            with open(rd.root("meta.json")) as fin:
+                meta_data.update(json.load(fin))
 
         patient_id = meta_data["patient_id"] if "patient_id" in meta_data else sub
 
@@ -95,7 +106,9 @@ def do_run(args):
         # Normalizacja dawki do wartości maksymalnej dawki dla danego pacjenta
         ########################################################################
         log.info(f"Proguję dawki do {args.dose_levels} poziomów względem wartości maksymalnej: {np.max(doses)}")
-        doses = np.round(doses/np.max(doses) * args.dose_levels)
+
+        # doses = np.round(doses/np.max(doses) * args.dose_levels)
+        doses = np.round(doses/max_dose_global * args.dose_levels)
 
         log.info("Wczytuję informację o znacznikach ROI.")
         roi_marks = read_ndarray(rd.output("roi_marks.nparray"), dtype=np.int64)
@@ -201,35 +214,44 @@ def do_run(args):
 
             log.info(f"Rozpoczynam zapisywanie {roi_marks_mapped_full.shape[0]} plików z obrazami ROI (zmapowane) w formacie uint8")
             for i in range(roi_marks_mapped_full.shape[0]):
-                plt.imsave(rd.output(f"roi_marks_mapped_{i}.png", "roi_mapped_to_max"), roi_marks_mapped_full[i,:,:])
+                if hasattr(args, "savepng") and args.savepng:
+                    plt.imsave(rd.root_path(args.cnn_output, "roi_mapped_to_max_png", fname=f"roi_marks_mapped_{patient_id}_{i}.png"), roi_marks_mapped_full[i,:,:])
+
+
                 pil_im = Image.fromarray(roi_marks_mapped_full[i,:,:].astype(np.uint8))
-                pil_im.save(rd.output(f"pil_im_{i}.png", "roi_mapped_to_max"))
+                pil_im.save(rd.root_path(args.cnn_output,"roi_mapped_to_max_pil", fname=f"pil_im_{patient_id}_{i}.png"))
             
-            save_ndarray(rd.output("rois_marks_original.nparray", "roi_mapped_to_max"),roi_marks_original_full.astype(np.int32))
-            save_ndarray(rd.output("rois_marks_mapped.nparray", "roi_mapped_to_max"),roi_marks_mapped_full.astype(np.int32))
+            save_ndarray(rd.root_path(args.cnn_output, fname="rois_marks_original.nparray"), roi_marks_original_full.astype(np.int32))
+            save_ndarray(rd.root_path(args.cnn_output, fname="rois_marks_mapped_to_max.nparray"), roi_marks_mapped_full.astype(np.int32))
 
             doses_full = np.zeros( (doses.shape[0], final_shape_max[1], final_shape_max[2]) )
             doses_full[:, yfrom:yfrom+ref_slice.shape[0],xfrom:xfrom+ref_slice.shape[1]] = doses
 
             log.info(f"Rozpoczynam zapisywanie {doses_full.shape[0]} plików z dawkami (progowane do {args.dose_levels} poziomów) w formacie uint8 będą pliki pil")
             for i in range(doses_full.shape[0]):
-                plt.imsave(rd.output(f"doses_{i}.png", "doses_to_max"), doses_full[i,:,:])
+                if hasattr(args, "savepng") and args.savepng:
+                    plt.imsave(rd.root_path(args.cnn_output, "doses_to_max_png", fname=f"doses_{patient_id}_{i}.png"), doses_full[i,:,:])
+
                 pil_im = Image.fromarray(doses_full[i,:,:].astype(np.uint8))
-                pil_im.save(rd.output(f"pil_im_{i}.png", "doses_to_max"))
-            save_ndarray(rd.output(f"doses_to_max.nparray", "doses_to_max"), doses_full.astype(np.float32))
+                pil_im.save(rd.root_path(args.cnn_output, "doses_to_max_pil", fname=f"pil_im_{patient_id}_{i}.png"))
+
+            save_ndarray(rd.root_path(args.cnn_output, fname=f"doses_to_max.nparray"), doses_full.astype(np.float32))
 
 
             log.info(f"Rozpoczynam zapisywanie {doses_full.shape[0]} plików z danymi CT w formacie uint8 będą pliki pil")
             ct_full = np.zeros( (doses.shape[0], final_shape_max[1], final_shape_max[2]) )
             ct_full[:, yfrom:yfrom+ref_slice.shape[0],xfrom:xfrom+ref_slice.shape[1]] = ct
             for i in range(ct_full.shape[0]):
-                plt.imsave(rd.output(f"ct_{i}.png", "ct_to_max"), ct_full[i,:,:], cmap=cm.gray)
+                if hasattr(args, "savepng") and args.savepng:
+                    plt.imsave(rd.root_path(args.cnn_output, "ct_to_max_png", fname=f"ct_{patient_id}_{i}.png"), ct_full[i,:,:], cmap=cm.gray)
+
                 pil_im = Image.fromarray(ct_full[i,:,:].astype(np.uint8))
-                pil_im.save(rd.output(f"pil_im_{i}.png", "ct_to_max"))
+                pil_im.save(rd.root_path(args.cnn_output, "ct_to_max_pil", fname=f"pil_im_{patient_id}_{i}.png"))
 
 
             log.info(f"Rozpoczynam zapisywanie {doses_full.shape[0]} plików z danymi o obrazach ROI i dawek w formacie uint8 będą pliki pil dla sieci Mask-RCNN")
-            output = os.path.join(rd.root_folder(),'output','mask-rcnn')
+            output = rd.root_path(args.mask_rcnn_output)
+            log.info(f"Folder for mark-rcnn: {output}")
             pathlib.Path(output).mkdir(exist_ok=True)
             for i in range(doses_full.shape[0]):
                 image_id = f"{patient_id}_{i}"
@@ -266,8 +288,11 @@ def do_run(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Przechodzi przez podfoldery i przetwarza dane przypadków do postaci, która może być wykorzystana w uczeniu sieci neuronowych (CNN)")
     parser.add_argument('root_folder', help="główny folder, który zawiera analizowane podfoldery")
-    parser.add_argument('--dose_levels', type=float, help="liczba poziomów dawek w wyjściowych plikach png", default=255)
+    parser.add_argument('--dose-levels', type=float, help="liczba poziomów dawek w wyjściowych plikach png", default=255)
+    parser.add_argument('--cnn-output', help="nazwa katalogu wynikowego z obrazami", default="ouput_cnn")
+    parser.add_argument('--mask-rcnn-output', help="nazwa katalogu wynikowe z obrazami dla algorytmu Mask-RCNN", default="ouput_maskrcnn")
     parser.add_argument('-s', "--single", action="store_true", help="gdy podany, to będzie analizować tylko jeden folder bez poszukiwania głęboko")
+    parser.add_argument('-p', "--savepng", action="store_true", help="gdy podany, to będzie zapisywać również obrazy w formacie png")
     args = parser.parse_args()
 
     do_run(args)

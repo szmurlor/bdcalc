@@ -34,9 +34,10 @@ class RASSData:
 
     RASS_CONFIG_FILE = "rassdata.json"
 
-    def __init__(self, database_id=None, database=None, rassdata=None, root_folder=None):
+    def __init__(self, database_id=None, database=None, rassdata=None, root_folder=None, output="output"):
         self.data = {
             "root_folder": "",
+            "output": output,
             "files": {
                 "example.dat": {
                     "source_filename": "/etc/hosts",
@@ -71,18 +72,28 @@ class RASSData:
     def root_folder(self):
         return self.data["root_folder"]
 
+    def root_path(self, *subfolders, fname=None):
+        p = self.data["root_folder"]
+        for sub in subfolders:
+            p = os.path.join(p, sub)
+            if not os.path.exists(p):
+                os.mkdir(p)
+        if fname is not None:
+            p = os.path.join(p, fname)
+        return p
+
     def _get_folder(self, ftype, fname=None, subfolder=None):
         if fname is None:
             fname = ""
-        f = "%s/%s" % (self.data["root_folder"], ftype)
+        f = os.path.join(self.data["root_folder"], ftype)
         if not os.path.isdir(f):
             os.mkdir(f)
         if subfolder is not None:
-            f = "%s/%s" % (f, subfolder)
+            f = os.path.join(f, subfolder)
             if not os.path.isdir(f):
                 os.mkdir(f)
 
-        return "%s/%s" % (f, fname)
+        return os.path.join(f, fname)
 
     def root(self, fname=None, subfolder=None, check=True):
         res = None
@@ -132,10 +143,10 @@ class RASSData:
         return False
         
     def output(self, fname=None, subfolder=None):
-        return self._get_folder("output", fname, subfolder)
+        return self._get_folder(self.data["output"], fname, subfolder)
 
     def output_exists(self, fname=None, subfolder=None):
-        fn=self._get_folder("output", fname, subfolder)
+        fn=self._get_folder(self.data["output"], fname, subfolder)
         if (os.path.isfile(fn)):
             return True
         if (os.path.isdir(fn)):
