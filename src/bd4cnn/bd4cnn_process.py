@@ -203,7 +203,7 @@ def do_run(args):
                 
             for (rvalue, rname) in lst:
                 marks = read_ndarray(rd.output(f"roi_marks_{rname}.nparray"), dtype=np.int32) # mniejszy
-                b = (marks == 1) # gdzie wstawic ta wartosc?
+                b = (marks == 1) # gdzie wstawic przyporzadkowana w mapowaniu wartosc rvalue?
 
                 # rozmiar marks jest taki sam jak tmp
                 tmp = roi_marks_mapped_full[:, yfrom:yfrom+ref_slice.shape[0], xfrom:xfrom+ref_slice.shape[1]]
@@ -216,35 +216,31 @@ def do_run(args):
             for i in range(roi_marks_mapped_full.shape[0]):
                 if hasattr(args, "savepng") and args.savepng:
                     plt.imsave(rd.root_path(args.cnn_output, "roi_mapped_to_max_png", fname=f"roi_marks_mapped_{patient_id}_{i}.png"), roi_marks_mapped_full[i,:,:])
-
-
                 pil_im = Image.fromarray(roi_marks_mapped_full[i,:,:].astype(np.uint8))
                 pil_im.save(rd.root_path(args.cnn_output,"roi_mapped_to_max_pil", fname=f"pil_im_{patient_id}_{i}.png"))
             
             save_ndarray(rd.root_path(args.cnn_output, fname="rois_marks_original.nparray"), roi_marks_original_full.astype(np.int32))
             save_ndarray(rd.root_path(args.cnn_output, fname="rois_marks_mapped_to_max.nparray"), roi_marks_mapped_full.astype(np.int32))
 
+            ## DOSES
             doses_full = np.zeros( (doses.shape[0], final_shape_max[1], final_shape_max[2]) )
             doses_full[:, yfrom:yfrom+ref_slice.shape[0],xfrom:xfrom+ref_slice.shape[1]] = doses
-
             log.info(f"Rozpoczynam zapisywanie {doses_full.shape[0]} plików z dawkami (progowane do {args.dose_levels} poziomów) w formacie uint8 będą pliki pil")
             for i in range(doses_full.shape[0]):
                 if hasattr(args, "savepng") and args.savepng:
                     plt.imsave(rd.root_path(args.cnn_output, "doses_to_max_png", fname=f"doses_{patient_id}_{i}.png"), doses_full[i,:,:])
-
                 pil_im = Image.fromarray(doses_full[i,:,:].astype(np.uint8))
                 pil_im.save(rd.root_path(args.cnn_output, "doses_to_max_pil", fname=f"pil_im_{patient_id}_{i}.png"))
 
             save_ndarray(rd.root_path(args.cnn_output, fname=f"doses_to_max.nparray"), doses_full.astype(np.float32))
 
-
-            log.info(f"Rozpoczynam zapisywanie {doses_full.shape[0]} plików z danymi CT w formacie uint8 będą pliki pil")
+            # CT
             ct_full = np.zeros( (doses.shape[0], final_shape_max[1], final_shape_max[2]) )
             ct_full[:, yfrom:yfrom+ref_slice.shape[0],xfrom:xfrom+ref_slice.shape[1]] = ct
+            log.info(f"Rozpoczynam zapisywanie {ct_full.shape[0]} plików z danymi CT w formacie uint8 będą pliki pil")
             for i in range(ct_full.shape[0]):
                 if hasattr(args, "savepng") and args.savepng:
                     plt.imsave(rd.root_path(args.cnn_output, "ct_to_max_png", fname=f"ct_{patient_id}_{i}.png"), ct_full[i,:,:], cmap=cm.gray)
-
                 pil_im = Image.fromarray(ct_full[i,:,:].astype(np.uint8))
                 pil_im.save(rd.root_path(args.cnn_output, "ct_to_max_pil", fname=f"pil_im_{patient_id}_{i}.png"))
 
@@ -273,7 +269,6 @@ def do_run(args):
                     level_mask = doses_full[i,:,:].astype(np.int32)
                     level_mask[ level_mask != level ] = 0
                     level_mask[ level_mask == level ] = 1
-                    # log.info(f"Img: {i} Level: {level} Liczba 0: {np.sum(level_mask==0)}, liczba 1: {np.sum(level_mask==1)}")
                     plt.imsave(os.path.join(output_pngs, f"{image_id}_{level}.png"), level_mask) # obrazek z roiami
 
                     pil_im = Image.fromarray(level_mask.astype(np.uint8))

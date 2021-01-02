@@ -6,7 +6,7 @@ import logging
 log = logging.getLogger(__name__) 
 #formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 #log.setFormater(formatter)
-log.setLevel(level=logging.DEBUG)
+log.setLevel(level=logging.INFO)
 
 def save_ndarray(fname, data):
     """
@@ -46,7 +46,7 @@ def read_ndarray(fname, dtype=np.float32):
             nsize = struct.unpack("i", bsize)[0]
             shape.append( nsize )
         
-        log.info(f"The ndarray data has shape: {shape}")
+        log.debug(f"The ndarray data has shape: {shape}")
 
         data = np.fromfile(fin, dtype, np.prod(shape))
         data = np.reshape(data, shape)
