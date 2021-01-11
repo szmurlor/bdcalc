@@ -249,8 +249,8 @@ def read_matrix(fname):
 def saveToVTI(filename, beamlet_doses, spacing, n, orig):
     # Zapisywanie danych do formatu vti
     volume = VolumeData()
-    grid = volume.createGrid(spacing, n, orig)
-    ar = volume.createFloatArray(grid)
+    grid = VolumeData.createGrid(spacing, n, orig)
+    ar = VolumeData.createFloatArray(grid)
     ar.SetVoidArray(beamlet_doses, n[0] * n[1] * n[2], 1)
     grid.GetPointData().SetScalars(ar)
     volume = VolumeData(grid)
@@ -314,22 +314,24 @@ class VMC:
     def postprocess(self, response):
         start = time.time()
 
-        for beamlet in response['beamlets']:
-            beamlet_idx = beamlet['idx']
-            log.info("Starting postprocessing of beamlet [%d]" % beamlet_idx)
-            mdoses = beamlet["doses_map"]
-            log.info("Size of interesting doses for %s is: %d" % (beamlet_idx, mdoses.shape[0]))
+        log.info(f"The response type is: {type(response)}")
+        if response is not None:
+            for beamlet in response['beamlets']:
+                beamlet_idx = beamlet['idx']
+                log.info("Starting postprocessing of beamlet [%d]" % beamlet_idx)
+                mdoses = beamlet["doses_map"]
+                log.info("Size of interesting doses for %s is: %d" % (beamlet_idx, mdoses.shape[0]))
 
-            print(f"max mdoses = {numpy.max(mdoses[:,1])}")
-            self.total_doses[mdoses[:,0].astype(int)] = self.total_doses[mdoses[:,0].astype(int)] + mdoses[:,1]
+                print(f"max mdoses = {numpy.max(mdoses[:,1])}")
+                self.total_doses[mdoses[:,0].astype(int)] = self.total_doses[mdoses[:,0].astype(int)] + mdoses[:,1]
 
-            self.lock.acquire()
-            try:
-                self.beamlets_doses[beamlet_idx] = mdoses
-            except:
-                traceback.print_exc()
-            finally:
-                self.lock.release()
+                self.lock.acquire()
+                try:
+                    self.beamlets_doses[beamlet_idx] = mdoses
+                except:
+                    traceback.print_exc()
+                finally:
+                    self.lock.release()
 
         end = time.time()
         log.info("Postprocessing time: %s s" % (end - start))
@@ -403,9 +405,12 @@ class VMC:
         while r_waiting:            
             for r in r_finished:
                 log.info(f"Posprocesing...")
-                self.postprocess(ray.get(r))
+                b = ray.get(r)
+                self.postprocess(b)
+                del b
+                del r
             log.info("Waiting for results...")
-            r_finished, r_waiting = ray.wait(r_waiting, timeout=2.0)
+            r_finished, r_waiting = ray.wait(r_waiting, timeout=0.5)
             log.info(f"Got {len(r_finished)} results to posprocess. Still waiting for {len(r_waiting)}...")
 
         for r in r_finished:
@@ -532,9 +537,8 @@ class VMC:
 
         # Zapisywanie danych do formatu vti
         log.info("Zapisuję przeskalowane dane gęstości masy z CT do pliku: %s" % self.rass_data.output("approximated_ct"))
-        volume = VolumeData()
-        grid = volume.createGrid((self.spacing[0], self.spacing[1], self.spacing[2]), (self.n[0], self.n[1], self.n[2]), (self.orig[0], self.orig[1], self.orig[2]))
-        array = volume.createFloatArray(grid)
+        grid = VolumeData.createGrid((self.spacing[0], self.spacing[1], self.spacing[2]), (self.n[0], self.n[1], self.n[2]), (self.orig[0], self.orig[1], self.orig[2]))
+        array = VolumeData.createFloatArray(grid)
         array.SetVoidArray(npar, numpy.prod(npar.shape), 1)
         # for i in range(np.size(dens, 0)):
         #    array.SetValue(i, dens[i])

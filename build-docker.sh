@@ -24,10 +24,10 @@ done
 
 # Build the current bdcalc source
 if [ $OUTPUT_SHA ]; then
-    IMAGE_SHA=$(docker build $NO_CACHE -q -f docker/Dockerfile -t szmurlor/bdcalc:0.1 .)
+    IMAGE_SHA=$(docker build $NO_CACHE -q -f docker/Dockerfile -t szmurlor/bdcalc:0.5 .)
 else
-    #docker build --no-cache -q -f docker/Dockerfile -t szmurlor/bdcalc:0.1 .
-    docker build $NO_CACHE -f docker/Dockerfile -t szmurlor/bdcalc:0.1 .
+    #docker build --no-cache -q -f docker/Dockerfile -t szmurlor/bdcalc:0.5 .
+    docker build $NO_CACHE -f docker/Dockerfile -t szmurlor/bdcalc:0.5 .
 fi
 
 if [ $OUTPUT_SHA ]; then

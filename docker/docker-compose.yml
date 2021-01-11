@@ -1,7 +1,7 @@
 version: "3.7"
 services:
   ray-head:
-    image: szmurlor/bdcalc:0.1
+    image: szmurlor/bdcalc:0.4
     deploy:
       replicas: 1
       resources:
@@ -24,7 +24,7 @@ services:
         constraints: [node.role == manager]      
     command: /bin/bash start-head.sh
   ray-node:
-    image: szmurlor/bdcalc:0.1
+    image: szmurlor/bdcalc:0.4
     deploy:
       # start only one service on each node of a swarm
       mode: global
