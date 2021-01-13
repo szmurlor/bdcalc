@@ -102,8 +102,9 @@ def save_beamlets_doses_map(fname, beamlets_doses):
 
 # noinspection PyUnresolvedReferences
 def read_beamlets_doses_map(fname):
-    beamlets_doses_map = None
     log.info("Reading beamlets doses from cache file: %s" % fname)
+
+    beamlets_doses_map = None
     if os.path.isfile(fname):
         beamlets_doses_map = {}
         fin = open(fname, "rb")
@@ -120,7 +121,8 @@ def read_beamlets_doses_map(fname):
             beamlets_doses_map[btidx] = beamlet_doses
 
         fin.close()
-
+        
+    log.info(f"Done reading beamlet doses from cache file {fname}")
     return beamlets_doses_map
 
 
@@ -226,14 +228,14 @@ def write_main_file(fname, all_beamlets, roi_marks, doseScaling, myROIs, ctVolum
     f.write(f'{ctVolumeData.dimensions[0]} {ctVolumeData.dimensions[1]} {ctVolumeData.dimensions[2]} {ctVolumeData.origin[0]/10} {ctVolumeData.origin[1]/10} {ctVolumeData.origin[2]/10} {ctVolumeData.spacing[0]/10} {ctVolumeData.spacing[1]/10} {ctVolumeData.spacing[2]/10} // ct_volume_data nx ny nz origx origy origz spacingx spacingy spacingz [cm]\n')
     p = planGridInfo
     f.write(f'{p["ixmax"]} {p["iymax"]} {p["izmax"]} {p["xorig"]} {p["yorig"]} {p["zorig"]} {p["dx"]} {p["dy"]} {p["dz"]} // plan_volume_data nx ny nz origx origy origz spacingx spacingy spacingz [cm]\n')
-
     f.close()
+
+    log.info('Finished writing mainfile...')
 
 
 def write_rois(fname, totalDoses, roi_marks, kmax, jmax, imax, plan_grid_ct, v2Drow):
     log.info('Writing ROIs...')
-
-    log.info("plan_grid_ct.shape: {}".format(plan_grid_ct.shape))
+    
     f = open(fname, 'w')
     for i in range(0, imax):
         for j in range(0, jmax):
@@ -241,9 +243,9 @@ def write_rois(fname, totalDoses, roi_marks, kmax, jmax, imax, plan_grid_ct, v2D
                 if roi_marks[i][j][k] > 0:
                     ivoxel = k + j * kmax + i * (kmax * jmax)
                     f.write('%d %d %d %d %f\n' % (roi_marks[i][j][k], i, j, k, plan_grid_ct[v2Drow[ivoxel]-1]))
-                    # Who the fuck wrote the line below!!!
-                    #totalDoses[i][j][k] = 0
     f.close()
+
+    log.info("Finished writing ROIs.")
 
 
 def write_active_beamlets(fname, beamlets):
@@ -272,24 +274,6 @@ def write_active_beamlets_coordinates(fname, beamlets):
                 f.write('%d %d\n' % (j, i))
             t += 1
     f.close()
-
-
-def write_recover_structure(all_beamlets, fname, v2Drow):
-    log.info("Writing recover data...")
-    rf = gzip.open(fname, 'wb')
-    rf.write('%d\n' % len(v2Drow))
-
-    for i in range(0, len(v2Drow)):
-        rf.write('%d %d\n' % (i, v2Drow[i]))
-
-    rf.write('%d\n' % len(plan.Beams))
-
-    for beamlets in all_beamlets:
-        rf.write('%d\n' % beamlets.size)
-        for t in range(0, beamlets.size):
-            rf.write('%d %d\n' % (t, beamlets.active[t]))
-
-    rf.close()
 
 
 def map_voxel_to_D_row(kmax, jmax, imax, roi_marks):
@@ -346,7 +330,6 @@ def default_options():
         "mc_scale_to_avg_factor": 0.0,   # uzywane wg. wzoru: s = avg_eclipse / avg_mc * mc_scale_to_avg_factor +
                                          #                        max_eclipse / max_mc * mc_scale_to_max_factor
         "extra_doses_scale": 0.0,        # 0.0 - no extra scaling, else mcScale = mcScale * extra_doses_scale
-        "ncpu": 16,                      # liczba lokalnych węzłów używanych do obliczeń
         "ncase": 50000,                  # liczba próbek MC
         "nbatch": 10,                    # liczba iteracji MC
         "histograms": False,             # czy generować histogramy
@@ -439,7 +422,6 @@ if __name__ == '__main__':
     ################################################################
     # Szukam plików DICOM
     ################################################################
-    #path, rtss, plan = utils.findRSandRP(dicom_directory)
     rtss, plan, ctlist, doseslist = dicomutils.find_ct_rs_rp_dicom(dicom_directory)
     if rtss is None or plan is None:
         raise NoRSFileException(dicom_directory)
@@ -461,7 +443,6 @@ if __name__ == '__main__':
     ctVolumeData = reader.read()
 
 
-    # ctlist = (glob.glob(dicom_directory + '/ct*') + glob.glob(dicom_directory + '/CT*'))
     if len(ctlist) > 0:
         ct = dicom.read_file(ctlist[0])
         ctgriddata = list(map(float, (ct.ImagePositionPatient[0], ct.ImagePositionPatient[1],
@@ -485,20 +466,17 @@ if __name__ == '__main__':
     for beam in beams:
         doseScaling = float(beam.DoseGridScaling)
         try:
-            #log.info(f"Read beam {dir(beam.ReferencedRTPlanSequence[0].ReferencedFractionGroupSequence[0].ReferencedBeamSequence[0])}")
             bn = int(beam.ReferencedRTPlanSequence[0].ReferencedFractionGroupSequence[0].ReferencedBeamSequence[0].ReferencedBeamNumber)
         except:
-            print("Semething wrong went...")
+            print("ERROR! Semething wrong went...")
             if totalDoses is None:
                 singleBeam = True
                 totalDoses = beam.pixel_array.copy()
                 totalDosesFile = beam.filename
             continue
-        log.info(f"Read beam {bn}")
         beamDoses[bn] = beam.pixel_array
         if doseScaling is not None and float(beam.DoseGridScaling) != doseScaling:
             log.warning('Strange data: DoseGridScaling is not same all beamlets!')
-        log.debug('Got doses from bundle %d' % bn)
 
     if not singleBeam:
         bns = beamDoses.keys()
@@ -507,8 +485,9 @@ if __name__ == '__main__':
             log.info(f"Adding doses from beam {i}")
             totalDoses += beamDoses[bns[i]]
 
+    log.info(f"Read doses for {len(beamDoses)} beams")
+
     totalDoses = np.array(totalDoses, dtype=np.float32)
-    log.info("Read doses for %d beams" % len(beamDoses))
     npTotalDoses = np.array(totalDoses, dtype=np.float32)
 
     minDose = np.min(totalDoses)
@@ -540,9 +519,6 @@ if __name__ == '__main__':
         xbase, xbase + kmax * dx, ybase, ybase + jmax * dy, zbase + zoffsets[0], zbase + zoffsets[-1],
         dx, dy, dz, dv))
 
-    ## Tylko debugginf poniżej - sprawdzamy całkowite dawki.
-    log.info("Max total npTotalDoses: %f" % np.max(npTotalDoses))
-    vmc.saveToVTI(rass_data.output("totalDoses_test"), np.reshape(npTotalDoses, np.prod([kmax, jmax, imax])), [dx, dy, dz], [kmax, jmax, imax], [xbase, ybase, zbase])
 
     if options["override_dicom_plan_grid"]:
         pg = options["override_plan_grid"]
@@ -580,7 +556,7 @@ if __name__ == '__main__':
     idxROIBody = -1
     for i in range(0, len(rtss.StructureSetROISequence)):
         roiName = rtss.StructureSetROISequence[i].ROIName
-        log.info("Finding contours for %s" % roiName)
+        log.info(f"Finding contours for {roiName}")
         myROIs.append(MyRoi(dicomutils.findContours(rtss, rtss.StructureSetROISequence[i].ROINumber),
                             roiName, float(beams[0].PixelSpacing[0]) / 1000.0))
 
@@ -629,10 +605,7 @@ if __name__ == '__main__':
     if v2Drow is None:
         v2Drow = map_voxel_to_D_row(kmax, jmax, imax, roi_marks)
         save_voxel_to_D_row(v2Drow, fcache)
-        if options["debug_v2Drow"]:
-            v2Drow_check = read_voxel_to_D_row(fcache)
-            error("Condition = %s" % (v2Drow == v2Drow_check))
-    log.info('%d voxels classified to ROIs' % len(v2Drow))
+    log.info(f'{len(v2Drow)} voxels classified to ROIs')
 
     # Main doses matrix obtained from MonteCarlo and rebuild from Doses v2Doses map
     mcDoses = np.zeros(totalDoses.shape, dtype=np.float32)
@@ -645,7 +618,6 @@ if __name__ == '__main__':
     log.info("Starting marking voxels")
     ######################################################################
     voxels = np.zeros(totalDoses.shape, dtype=np.float32)
-    voxels_slow = np.zeros(totalDoses.shape, dtype=np.float32)
     create_pareto_vmc_c.mark_voxels(voxels, v2Drow, kmax, jmax, imax)
     log.info("Finished marking voxels")
     vmc.saveToVTI(rass_data.output("voxels.vti"), voxels, [dx, dy, dz], [kmax, jmax, imax], [xbase, ybase, zbase])
@@ -653,10 +625,6 @@ if __name__ == '__main__':
     #####################################################################
     all_beamlets = get_beamlets_from(plan)
     #####################################################################
-
-    if options["out_recover_structure"]:
-        out_recov_fname = rass_data.output('r_%s.txt.gz' % treatment_name)
-        write_recover_structure(all_beamlets, out_recov_fname, v2Drow)
 
     ######################################################################
     log.info('Processing bundles')
@@ -685,14 +653,12 @@ if __name__ == '__main__':
 
         vmcCalculator = vmc.VMC(rass_data)
         plan_grid_ct = vmcCalculator.getApproximatedCT(beamSpecJSON, v2Drow=v2Drow, voxels=voxels, options=options, ctfiles=ctlist)
-        print("{}".format(plan_grid_ct))
 
         if needs_calculate:
             ###################################################################################################
             ########################### RUN ###################################################################
             ###################################################################################################
             vmcCalculator = vmc.VMC(rass_data)
-            vmcCalculator.ncpu = options["ncpu"]
             beamlets_doses = vmcCalculator.run(beamSpecJSON, v2Drow=v2Drow, voxels=voxels, options=options, ctfiles=ctlist)
             save_beamlets_doses_map(beamlets_doses_cachefile, beamlets_doses)
             ###################################################################################################
@@ -708,8 +674,6 @@ if __name__ == '__main__':
             log.info("beamTotalDoses.shape = %s" % beamTotalDoses.shape)
             log.info("max beamTotalDoses = %lf, avg beamTotalDoses = %lf" % (np.max(beamTotalDoses), np.average(beamTotalDoses)))
 
-    print("max v2Drow {}".format(np.max(v2Drow)))
-    print("max plan_grid_ct.shape {}".format(plan_grid_ct.shape))
     if options["out_rois"]:
         write_rois(rass_data.output('v_%s.txt' % treatment_name, subfolder="%s" % treatment_name), totalDoses, roi_marks, kmax, jmax, imax, plan_grid_ct, v2Drow)
 
@@ -725,7 +689,6 @@ if __name__ == '__main__':
         beamlets_doses = read_beamlets_doses_map(beamlets_doses_cachefile)
 
         for btidx in sorted(beamlets_doses.keys()):
-            # info("Fluencja: %f dla btidx = %d" % (float(beamlets.fluence[btidx]), btidx))
             create_pareto_vmc_c.postprocess_fluence_for_scaling(beamlets_doses[btidx], float(beamlets.fluence[btidx]),
                                                                 mcDosesForScaling, kmax, jmax, imax)
 
@@ -778,7 +741,6 @@ if __name__ == '__main__':
                 f.write('%d\n' % sum([beamlets_doses[k].shape[0] for k in beamlets_doses.keys()]))
 
             for btidx in sorted(beamlets_doses.keys()):
-                #log.info("Fluencja: %f dla btidx = %d" % (float(beamlets.fluence[btidx]), btidx))
                 create_pareto_vmc_c.postprocess_fluence(monteCarloScalingCoefficient, beamlets_doses[btidx],
                                                         float(beamlets.fluence[btidx]), mcDoses, mcDosesFluence,
                                                         kmax, jmax, imax, options["out_mc_doses_txt"],
@@ -788,10 +750,8 @@ if __name__ == '__main__':
                 f.close()
     else:
         mcDoses = np.zeros(totalDoses.shape, dtype=np.float32)
-
         mcDosesScalingFactors = np.zeros(totalDoses.shape, dtype=np.float32)
         mcDosesScalingFactors[mcDosesForScaling > 1e-8] = np.divide(totalDoses[mcDosesForScaling > 1e-8], mcDosesForScaling[mcDosesForScaling > 1e-8])
-
         mcDosesScalingFactorsFlatSorted = np.sort(np.reshape(mcDosesScalingFactors, np.prod(mcDosesScalingFactors.shape)))
         mcDosesScalingFactorsFlatSorted = mcDosesScalingFactorsFlatSorted[mcDosesScalingFactorsFlatSorted > 1e-8]
         minScale = mcDosesScalingFactorsFlatSorted[ mcDosesScalingFactorsFlatSorted.shape[0]//4 ] # take value from 1/4 of the sorted set
@@ -799,13 +759,9 @@ if __name__ == '__main__':
         log.info("Using minScale = %f, maxscale %f" % (minScale, maxScale))
         mcDosesScalingFactors[ (mcDosesScalingFactors > 0) & (mcDosesScalingFactors < minScale) ] = minScale
         mcDosesScalingFactors[ (mcDosesScalingFactors > 0) & (mcDosesScalingFactors > maxScale) ] = maxScale
-
-
-
         vmc.saveToVTI(rass_data.output("total_doses_before_scaling"), np.reshape(totalDoses, np.prod([imax, jmax, kmax])), [dx, dy, dz], [kmax, jmax, imax], [xbase, ybase, zbase])
         vmc.saveToVTI(rass_data.output("mc_doses_for_scaling_before_scaling"), np.reshape(mcDosesForScaling, np.prod([imax, jmax, kmax])), [dx, dy, dz], [kmax, jmax, imax], [xbase, ybase, zbase])
         vmc.saveToVTI(rass_data.output("mcDosesScalingFactors"), np.reshape(mcDosesScalingFactors, np.prod([kmax, jmax, imax])),[dx, dy, dz], [kmax, jmax, imax], [xbase, ybase, zbase])
-
 
         ###############################################################################################################
         # Skaluję i zapisuję dawki do plików dla poszczególnych wiązek na podstawie skal związanych z każdym wokselem.
@@ -813,15 +769,12 @@ if __name__ == '__main__':
         for beamlets in all_beamlets:
 
             beamNo = beamlets.beam_number
-
-            beamlets_doses_cachefilename = rass_data.processing("%s_%d.beamlets_doses_map_cache" % (treatment_name, beamNo))
+            beamlets_doses_cachefilename = rass_data.processing(f"{treatment_name}_{beamNo}.beamlets_doses_map_cache")
             beamlets_doses = read_beamlets_doses_map(beamlets_doses_cachefilename)
-            log.info("Read beamlet doses from cache file %s" % beamlets_doses_cachefilename)
 
             if options["out_mc_doses_txt"]:
-                log.info('Writing doses for bundle %d' % beamNo)
-                f = open(rass_data.output('d_%s_%d.txt' % (treatment_name, beamNo), subfolder="%s" % treatment_name),
-                         'w')
+                log.info(f'Writing doses for bundle {beamNo}')
+                f = open(rass_data.output('d_%s_%d.txt' % (treatment_name, beamNo), subfolder="%s" % treatment_name), 'w')
                 f.write('%d\n' % sum([beamlets_doses[k].shape[0] for k in beamlets_doses.keys()]))
             else:
                 f = None
@@ -841,13 +794,13 @@ if __name__ == '__main__':
         if options["out_mc_doses"]:
             vmc.saveToVTI(rass_data.output("mc_doses_tuz_after"), np.reshape(mcDoses, np.prod([imax, jmax, kmax])), [dx, dy, dz], [kmax, jmax, imax], [xbase, ybase, zbase])
 
+        # end of - skalowanie lokalne na poziomie pojedynczych voxeli
+
     ##########################################################
     # Print total doses statistics from Monte Carlo
     ##########################################################
-    log.info('Total doses (Monte Carlo) calculated as sum of beam doses (min dose=%f, average dose=%f, max dose=%f)' % (
-        100. * np.min(mcDoses) * doseScaling, 100. * np.average(mcDoses) * doseScaling, 100. * np.max(mcDoses) * doseScaling))
-    log.info('Total doses flunced (Monte Carlo) calculated as sum of beam doses and weighted with plan fluence (min dose=%f, average dose=%f, max dose=%f)' % (
-        100. * np.min(mcDosesFluence) * doseScaling, 100. * np.average(mcDosesFluence) * doseScaling, 100. * np.max(mcDosesFluence) * doseScaling))
+    log.info(f'Total doses (Monte Carlo) calculated as sum of beam doses (min dose={100. * np.min(mcDoses) * doseScaling}, average dose={100. * np.average(mcDoses) * doseScaling}, max dose={100. * np.max(mcDoses) * doseScaling})')
+    log.info(f'Total doses flunced (Monte Carlo) calculated as sum of beam doses and weighted with plan fluence (min dose={100. * np.min(mcDosesFluence) * doseScaling}, average dose={100. * np.average(mcDosesFluence) * doseScaling}, max dose={100. * np.max(mcDosesFluence) * doseScaling})')
 
     ##########################################################
     # Print total doses statistics from ECLIPSE
@@ -867,7 +820,6 @@ if __name__ == '__main__':
         write_main_file(rass_data.output('m_%s.txt' % treatment_name, subfolder="%s" % treatment_name), all_beamlets, roi_marks, doseScaling, myROIs, ctVolumeData, planGridInfo)
     if options["out_rois"]:
         write_rois(rass_data.output('v_%s.txt' % treatment_name, subfolder="%s" % treatment_name), totalDoses, roi_marks, kmax, jmax, imax, plan_grid_ct, v2Drow)
-
     if options["debug_beam_doses"]:
         vmc.saveToVTI(rass_data.output("mcp_doses"), mcDosesVMC, [dx, dy, dz], [kmax, jmax, imax], [xbase, ybase, zbase])
     if options["out_mc_doses"]:
@@ -887,28 +839,27 @@ if __name__ == '__main__':
     if options["histograms"]:
 
         def generate_gnuplot_histograms(name, subfolder, doses_to_plot):
-            fout = open(rass_data.output(f"statistics_{name}.txt"),'w')
-            log.info(f"Generating histograms for {name}...")
+            stats_fname = rass_data.output(f"statistics_{name}.txt");
             png_fname = '%s_histogram_%s.png' % (treatment_name, name)
+
+            log.info(f"Generating histograms for {name}... (statistics will be saved to: {stats_fname})")
+            
+            fout = open(stats_fname,'w')
             f = open(rass_data.output('histograms.gpt', subfolder=subfolder), 'w')
             f.write('set grid\nset style data lp\nset xlabel \'Dose [cGy]\'\n'
                     'set ylabel \'%% of volume\'\nset yrange [0:110]\nset term png size 1024,768\nset output "%s"\nplot ' % png_fname)
             for r in range(len(myROIs)):
-                log.info("+----- %s" % myROIs[r].name)
-                fout.write("+----- %s\n" % myROIs[r].name)
                 minD, avgD, maxD = histogram(doses_to_plot, roi_marks, 2 ** r, rass_data.output("%s.hist" % myROIs[r].name, subfolder=subfolder), 100. * doseScaling, dv, HIST_PTS)
-                log.info('Voxel doses in %20s: min=%12g avg=%12g max=%12g [cGy]' % (
-                    myROIs[r].name, 100. * minD * doseScaling, 100. * avgD * doseScaling, 100. * maxD * doseScaling))
-                fout.write('Voxel doses in %20s: min=%12g avg=%12g max=%12g [cGy]\n' % (
-                    myROIs[r].name, 100. * minD * doseScaling, 100. * avgD * doseScaling, 100. * maxD * doseScaling))
+                
+                s = f'Voxel doses in {myROIs[r].name:>20}: min={minD * doseScaling:>12.6} avg={avgD * doseScaling:>12.6} max={maxD * doseScaling:>12.6} [cGy]'
+                log.info(s) 
+                fout.write(s)
+
                 if maxD > 0:
                     f.write('\'' + myROIs[r].name + '.hist\', ')
             f.write('\n#set term x11 size 1024,768\n#replot\n#pause 120\n')
             f.close()
             fout.close()
-
-            if options["run_gnuplot"]:
-                call(["gnuplot", 'histograms.gpt'], cwd=rass_data.output('', subfolder=subfolder))
 
         generate_gnuplot_histograms("ecplise_PlanRT", "hist", totalDoses)
         generate_gnuplot_histograms("MC_calculated_with_Fluence_1", "red", mcDoses)

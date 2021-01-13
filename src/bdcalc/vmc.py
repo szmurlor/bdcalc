@@ -118,14 +118,13 @@ def calculate_single_beamlet(beamlets, opt):
         import tempfile
 
         with tempfile.TemporaryDirectory() as node_processing_folder:
-            print("Using node processing folder: %s" % node_processing_folder)
+            # print("Using node processing folder: %s" % node_processing_folder)
 
             first_idx = None
             last_idx = None
             for beamlet in beamlets:
                 # print(f"Processing beamlet no: {beamlet}")
                 idx = beamlet["idx"]
-                print(f"Beamlet idx is: {idx}")
 
                 # --------------------- OBLICZ UZYWAJAC VNC ----------------------------------------------------
                 vmc_beamlet_spec_filename = "%s/beamlet_%s.vmc" % (node_processing_folder, idx)
@@ -133,15 +132,9 @@ def calculate_single_beamlet(beamlets, opt):
                 write_beamlet(beamlet, vmc_beamlet_spec_filename, opt)
                 write_beamlet(beamlet, "/tmp/akuku.vmc", opt)
 
-                #if "ncpu" in opt and opt["ncpu"] > 1:
-                print("Calling in parallel: %s/vmc_wrapper %s %s %s %s %s" % (opt["vmc_home"], opt["vmc_home"], node_processing_folder, opt["xvmc_dir"], "%s/bin/vmc_Linux.exe" % opt["vmc_home"], vmc_beamlet_spec_name))
+                print(f"Calling in parallel (beamlet: {idx}): {opt['vmc_home']}/vmc_wrapper {opt['vmc_home']} {node_processing_folder} {opt['xvmc_dir']} {opt['vmc_home']}/bin/vmc_Linux.exe {vmc_beamlet_spec_name}")
                 p = subprocess.Popen(["%s/vmc_wrapper" % opt["vmc_home"], opt["vmc_home"], node_processing_folder, opt["xvmc_dir"], "%s/bin/vmc_Linux.exe" % opt["vmc_home"], vmc_beamlet_spec_name], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 p.wait()
-                #else:
-                #    print("Calling sequential: %s/vmc_wrapper %s %s %s %s %s" % (opt["vmc_home"], opt["vmc_home"], node_processing_folder, opt["xvmc_dir"], "%s/bin/vmc_Linux.exe" % opt["vmc_home"], vmc_beamlet_spec_name))
-                #    p = subprocess.Popen(["%s/vmc_wrapper" % opt["vmc_home"], opt["vmc_home"], node_processing_folder, opt["xvmc_dir"], "%s/bin/vmc_Linux.exe" % opt["vmc_home"], vmc_beamlet_spec_name])
-                #    p.wait()
-
                 doses_filename = "%s/%s_phantom.dos" % (node_processing_folder, vmc_beamlet_spec_name)
 
                 beamlet_doses = read_doses(doses_filename)
@@ -162,12 +155,10 @@ def calculate_single_beamlet(beamlets, opt):
                         # Wynik zapisz w macierzy nwierszy na dwie kolumny. Pierwsza kolumna to indeks voxela, druga dawka
                         ####################################################################################################
                         maxDoseThisBeamlet = numpy.max(beamlet_doses)
-                        print("Wycinam tylko voksele, w ktorych dawka jest wieksza od: %f (%f%%)" % (maxDoseThisBeamlet * dose_tolerance_min, dose_tolerance_min))
-                        print(f"Max dose in beamlet_doses={numpy.max(beamlet_doses)}")
+                        print(f"Wycinam tylko voksele, w ktorych dawka jest wieksza od: {maxDoseThisBeamlet * dose_tolerance_min} ({dose_tolerance_min*100}%%)")
                         cond = (beamlet_doses > (maxDoseThisBeamlet * dose_tolerance_min)) & (condInterestingVoxels)
                         vdoses = beamlet_doses[cond]
                         vindexes = numpy.where(cond)[0]  # zwraca indeksy pasujących
-                        print(f"Max dose in vdoses={numpy.max(vdoses)}")
                         mdoses = numpy.zeros((len(vdoses), 2), dtype=numpy.float32)
                         mdoses[:, 0] = vindexes
                         mdoses[:, 1] = vdoses
@@ -306,7 +297,6 @@ class VMC:
         # Wszystko powinno być zapisane w centymetrach
         self.geometric_scale = None
         self.lock = thread.allocate_lock()
-        self.ncpu = 1
         self.debug_max_beamlets = None
 
         # If water phantom, then fill in CT with ones everywhere.
@@ -370,12 +360,7 @@ class VMC:
             log.info("Taking energy spectrum from input folder: %s, to file: %s" % (spectrum_in, spectrum_dest))
             shutil.copy(spectrum_in, spectrum_dest)
 
-        
-
-        log.debug("Size of v2Drow = %d" % v2Drow.shape)
         self.condInterestingVoxels = (v2Drow >= 0)
-        log.debug("Shape of condInterestingVoxels = %d" % self.condInterestingVoxels.shape)
-
         interesting_voxels_file = self.rass_data.processing('interesting_voxels.dat');
         save_matrix(self.condInterestingVoxels, interesting_voxels_file)
 
@@ -408,21 +393,13 @@ class VMC:
         r_ids = [calculate_single_beamlet.remote([b],opt) for b in bb]
         r_finished, r_waiting = ray.wait(r_ids, timeout=1)
         while r_waiting:        
-            #auto_garbage_collect(pct=0.5)  
-            
             for r in r_finished:
-                #log.info(f"Posprocesing...")
-                b = ray.get(r)
-                self.postprocess(b)
-                del b
-                del r
-            #log.info("Waiting for results...")
+                self.postprocess(ray.get(r))
             r_finished, r_waiting = ray.wait(r_waiting, timeout=0.5)
             log.info(f"Got {len(r_finished)} results to posprocess. Still waiting for {len(r_waiting)}...")
         for r in r_finished:
-            log.info(f"Posprocesing...")
+            log.info(f"Finishing posprocesing...")
             self.postprocess(ray.get(r))
-
 
         log.info("Min total dose = %f, Max total dose = %f" % (numpy.min(self.total_doses), numpy.max(self.total_doses)))
         saveToVTI(self.rass_data.output("beamlet_total_for_beam_%d" % self.conf_data["beam_number"]), self.total_doses, self.spacing, self.n, self.orig)
@@ -685,7 +662,6 @@ class VMC:
                 "vmc_home": self.vmc_home,
                 "delete_doses_file_after": self.delete_doses_file_after,
                 "delete_vmc_file_after": self.delete_vmc_file_after,
-                "ncpu": self.ncpu,
                 "ncase": self.ncase,
                 "nbatch": self.nbatch,
                 "processing": self.doses_dos_path,

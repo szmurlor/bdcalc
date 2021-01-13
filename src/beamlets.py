@@ -21,7 +21,7 @@ class Beamlets:
 		dy = SOURCE_TO_ISOCENTER_DISTANCE * sin(angle)
 		self.isocenter = np.array(list(map(float, beam.ControlPointSequence[0].IsocenterPosition)))
 		self.source = np.array([self.isocenter[0] + dx, self.isocenter[1] + dy, self.isocenter[2]])
-		print("Isocenter: %f, %f, %f" % (self.isocenter[0], self.isocenter[1], self.isocenter[2]))
+		# print("Isocenter: %f, %f, %f" % (self.isocenter[0], self.isocenter[1], self.isocenter[2]))
 
 		compensator = beam.CompensatorSequence[0]
 		self.rows = compensator.CompensatorRows

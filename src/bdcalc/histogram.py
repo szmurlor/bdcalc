@@ -305,6 +305,9 @@ class DosesMain:
                     fname = '%s/Preview Field %d_%s.png' % (self.path, nbeam, self.treatment_name)
 
                 print("Saving plot to %s" % fname)
+                import matplotlib
+                if not self.preview_fluence:
+                    matplotlib.use('Agg')
                 import matplotlib.pyplot as plt
                 plt.imshow(fmap)
                 plt.savefig(fname)
@@ -402,8 +405,8 @@ if __name__ == '__main__':
     parser.add_argument("--mainfile", dest="mainfile", help="Full path to main file with description of the Radiotherapy data case")
     parser.add_argument("--od", dest="override_directory", help="Change the directory where the result should be saved")
     parser.add_argument("--of", dest="override_fluences_filename", help="Change the filename core part for fluence maps")
-    parser.add_argument("--preview_fluence", dest="preview_fluence", type=bool, help="Should the fluences be previewable")
-    parser.add_argument("--save_png_fluence", dest="save_png_fluence", type=bool, help="Save fluence maps also to PNG images")
+    parser.add_argument("--preview_fluence", dest="preview_fluence", type=bool, help="Should the fluences be previewable", default=False)
+    parser.add_argument("--save_png_fluence", dest="save_png_fluence", type=bool, help="Save fluence maps also to PNG images", default=False)
 
     parser.add_argument("--rois_file", dest="rois_file", help="Name of the nparray format file (custom format) to read information about rois. This should be 3D matrix of integers.")
     parser.add_argument("--doses_file", dest="doses_file", help="Name of the nparray format file (custom format) to read information about doses. This should be 3D matrix of floats.")
@@ -433,6 +436,8 @@ if __name__ == '__main__':
         if "--preview_fluence" in argv:
             print("Previewing fluences")
             main.preview_fluence = True
+        else:
+            main.preview_fluence = False
 
         if "--save_png_fluence" in argv:
             print("Saving fluences maps to png files")
