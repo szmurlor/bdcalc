@@ -7,7 +7,7 @@ services:
       resources:
         limits:
           cpus: "8"
-          memory: 8192M
+          memory: 32G
       restart_policy:
         condition: on-failure
     networks:
@@ -22,7 +22,7 @@ services:
     deploy:
       placement:
         constraints: [node.role == manager]      
-    command: /bin/bash start-head.sh
+    command: /bin/bash /doses-nfs/bdcalc/docker/start-head.sh
   ray-node:
     image: szmurlor/bdcalc:0.4
     deploy:
@@ -45,7 +45,7 @@ services:
       - 10.40.33.3
     volumes:
       - doses-nfs:/doses-nfs
-    command: /bin/bash start-node.sh
+    command: /bin/bash /doses-nfs/bdcalc/docker/start-node.sh
 
 networks:
         #doses-net:

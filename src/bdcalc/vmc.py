@@ -13,6 +13,8 @@ import ray
 import traceback
 import shutil
 import socket
+import psutil
+import gc
 
 import subprocess
 from ct import CTVolumeDataReader
@@ -121,7 +123,7 @@ def calculate_single_beamlet(beamlets, opt):
             first_idx = None
             last_idx = None
             for beamlet in beamlets:
-                print(f"Processing beamlet no: {beamlet}")
+                # print(f"Processing beamlet no: {beamlet}")
                 idx = beamlet["idx"]
                 print(f"Beamlet idx is: {idx}")
 
@@ -256,6 +258,9 @@ def saveToVTI(filename, beamlet_doses, spacing, n, orig):
     volume = VolumeData(grid)
     volume.save(filename)
 
+def auto_garbage_collect(pct=80.0):
+    if psutil.virtual_memory().percent >= pct:
+        gc.collect()
 
 class VMC:
     def __init__(self, rass_data):
@@ -314,15 +319,15 @@ class VMC:
     def postprocess(self, response):
         start = time.time()
 
-        log.info(f"The response type is: {type(response)}")
+        #log.info(f"The response type is: {type(response)}")
         if response is not None:
             for beamlet in response['beamlets']:
                 beamlet_idx = beamlet['idx']
                 log.info("Starting postprocessing of beamlet [%d]" % beamlet_idx)
                 mdoses = beamlet["doses_map"]
-                log.info("Size of interesting doses for %s is: %d" % (beamlet_idx, mdoses.shape[0]))
+                #log.info("Size of interesting doses for %s is: %d" % (beamlet_idx, mdoses.shape[0]))
 
-                print(f"max mdoses = {numpy.max(mdoses[:,1])}")
+                #print(f"max mdoses = {numpy.max(mdoses[:,1])}")
                 self.total_doses[mdoses[:,0].astype(int)] = self.total_doses[mdoses[:,0].astype(int)] + mdoses[:,1]
 
                 self.lock.acquire()
@@ -334,7 +339,7 @@ class VMC:
                     self.lock.release()
 
         end = time.time()
-        log.info("Postprocessing time: %s s" % (end - start))
+        #log.info("Postprocessing time: %s s" % (end - start))
 
 
     def run(self, config_file=None, v2Drow=None, voxels=None, options=None, ctfiles=None):
@@ -399,23 +404,25 @@ class VMC:
                 if imax >= options["ray_calc_max_beamlets"]:
                     break
 
-        r_ids = [calculate_single_beamlet.remote([b],opt) for b in bb]
 
+        r_ids = [calculate_single_beamlet.remote([b],opt) for b in bb]
         r_finished, r_waiting = ray.wait(r_ids, timeout=1)
-        while r_waiting:            
+        while r_waiting:        
+            #auto_garbage_collect(pct=0.5)  
+            
             for r in r_finished:
-                log.info(f"Posprocesing...")
+                #log.info(f"Posprocesing...")
                 b = ray.get(r)
                 self.postprocess(b)
                 del b
                 del r
-            log.info("Waiting for results...")
+            #log.info("Waiting for results...")
             r_finished, r_waiting = ray.wait(r_waiting, timeout=0.5)
             log.info(f"Got {len(r_finished)} results to posprocess. Still waiting for {len(r_waiting)}...")
-
         for r in r_finished:
             log.info(f"Posprocesing...")
             self.postprocess(ray.get(r))
+
 
         log.info("Min total dose = %f, Max total dose = %f" % (numpy.min(self.total_doses), numpy.max(self.total_doses)))
         saveToVTI(self.rass_data.output("beamlet_total_for_beam_%d" % self.conf_data["beam_number"]), self.total_doses, self.spacing, self.n, self.orig)

@@ -36,7 +36,7 @@ class NoRSFileException(Exception):
 #ray.init(redis_address="10.0.2.15:59999")
 #ray.init(redis_address=options["ray_redis_address"])        
 #ray.init(redis_address="172.17.0.2:59422")
-ray.init(address="ray-0:6379")
+ray.init(address="ham-10:6379")
 #ray.init(ignore_reinit_error=True)
 import vmc
 
@@ -887,6 +887,7 @@ if __name__ == '__main__':
     if options["histograms"]:
 
         def generate_gnuplot_histograms(name, subfolder, doses_to_plot):
+            fout = open(rass_data.output(f"statistics_{name}.txt"),'w')
             log.info(f"Generating histograms for {name}...")
             png_fname = '%s_histogram_%s.png' % (treatment_name, name)
             f = open(rass_data.output('histograms.gpt', subfolder=subfolder), 'w')
@@ -894,13 +895,17 @@ if __name__ == '__main__':
                     'set ylabel \'%% of volume\'\nset yrange [0:110]\nset term png size 1024,768\nset output "%s"\nplot ' % png_fname)
             for r in range(len(myROIs)):
                 log.info("+----- %s" % myROIs[r].name)
+                fout.write("+----- %s\n" % myROIs[r].name)
                 minD, avgD, maxD = histogram(doses_to_plot, roi_marks, 2 ** r, rass_data.output("%s.hist" % myROIs[r].name, subfolder=subfolder), 100. * doseScaling, dv, HIST_PTS)
                 log.info('Voxel doses in %20s: min=%12g avg=%12g max=%12g [cGy]' % (
+                    myROIs[r].name, 100. * minD * doseScaling, 100. * avgD * doseScaling, 100. * maxD * doseScaling))
+                fout.write('Voxel doses in %20s: min=%12g avg=%12g max=%12g [cGy]\n' % (
                     myROIs[r].name, 100. * minD * doseScaling, 100. * avgD * doseScaling, 100. * maxD * doseScaling))
                 if maxD > 0:
                     f.write('\'' + myROIs[r].name + '.hist\', ')
             f.write('\n#set term x11 size 1024,768\n#replot\n#pause 120\n')
             f.close()
+            fout.close()
 
             if options["run_gnuplot"]:
                 call(["gnuplot", 'histograms.gpt'], cwd=rass_data.output('', subfolder=subfolder))
