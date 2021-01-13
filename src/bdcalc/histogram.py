@@ -161,14 +161,32 @@ class DosesMain:
         for i in range(self.bno):
             nbeam = self.bnos[i]
             bsize = self.bsizes[i]
-            f = file('%s/d_%s_%d.txt' % (self.path, self.treatment_name, nbeam))
-            count = self.read_1_int(f)
-            print("Reading doses for beam no %d (size: %d)" % (nbeam, count))
-            for k in range(count):
-            #for k in range(200000):
-                v, b, d = self.read_3_int(f)
-                res[v, start_col + b] = float(d)
-            start_col += bsize
+            fname = '%s/d_%s_%d.nparray' % (self.path, self.treatment_name, nbeam)
+            if os.path.isfile(fname):
+                print("Reading doses for beam no %d (size: %d) from binary file" % (nbeam, count))
+                count = self.read_1_int(f)
+
+                fin = open(fname, "rb")
+                bdim = fin.read(4)
+                ndim = struct.unpack("i", bdim)[0]
+
+                shape = [ndim, 3]
+                log.debug(f"The ndarray data has shape: {shape}")
+
+                data = np.fromfile(fin, dtype, np.prod(shape))
+                data = np.reshape(data, shape)
+                fin.close()
+                res[data[0], start_col + data[1]] = data[2].astype(np.float32)
+                start_col += bsize
+            else:
+                f = open('%s/d_%s_%d.txt' % (self.path, self.treatment_name, nbeam))
+                count = self.read_1_int(f)
+                print("Reading doses for beam no %d (size: %d) from text file" % (nbeam, count))
+                for k in range(count):
+                #for k in range(200000):
+                    v, b, d = self.read_3_int(f)
+                    res[v, start_col + b] = float(d)
+                start_col += bsize
         return res
 
     def histogram(self):
