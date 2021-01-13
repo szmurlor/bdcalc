@@ -524,8 +524,6 @@ class VMC:
         grid = VolumeData.createGrid((self.spacing[0], self.spacing[1], self.spacing[2]), (self.n[0], self.n[1], self.n[2]), (self.orig[0], self.orig[1], self.orig[2]))
         array = VolumeData.createFloatArray(grid)
         array.SetVoidArray(npar, numpy.prod(npar.shape), 1)
-        # for i in range(np.size(dens, 0)):
-        #    array.SetValue(i, dens[i])
         grid.GetPointData().SetScalars(array)
         volume = VolumeData(grid)
         volume.save(self.rass_data.output("approximated_ct"))
@@ -573,7 +571,6 @@ class VMC:
         self.doses_dos_path = conf["doses_dos_path"] if "doses_dos_path" in conf and conf["doses_dos_path"] is not None else self.rass_data.processing()
         self.cluster_config_file = conf["cluster_config_file"] if "cluster_config_file" in conf and conf["cluster_config_file"] is not None else None
 
-        print("beam_no = %d" % self.beam_no)
 
     def approximateCTOnPlanGrid(self, ctVolumeData):
         start = time.time()

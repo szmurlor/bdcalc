@@ -38,6 +38,10 @@ int main(int argc, char **argv) {
 		exit(-3);
 	}
 
+	if (argc > 3) {
+		debug_head = atoi(argv[3]);
+	}	
+
 
 	for (i = 0; i < atoi(argv[1]); i++) {
 		sprintf(fname_in, "%s%d.txt", argv[2], i+1);
