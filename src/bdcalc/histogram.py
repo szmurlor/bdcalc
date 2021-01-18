@@ -227,6 +227,7 @@ class DosesMain:
 
         f.write('set grid\nset style data lp\nset xlabel \'Dose [cGy]\'\n'
                 'set ylabel \'% of volume\'\nset yrange [0:110]\nplot ')
+        roi_statistics = {}        
         for r in range(self.roino):
             sid = self.roiids[r]
             name = self.roinames[r]
@@ -236,8 +237,24 @@ class DosesMain:
                 name, 100. * minD * self.dosegridscaling, 100. * avgD * self.dosegridscaling, 100. * maxD * self.dosegridscaling))
             if maxD > 0:
                 f.write('\'' + name + '.hist\', ')
+            roi_statistics[name] = {
+                "min": minD,
+                "avg": avgD,
+                "max": maxD
+            }
         f.write('\npause 120\n')
         f.close()
+
+        print("-"*50);
+        print(f"{'Region':^20}{'Min':^10}{'Avg':^10}{'Max':^10}")
+        print("-"*50);
+        for roi in roi_statistics:
+            minD = roi_statistics[roi]['min']* self.dosegridscaling
+            avgD = roi_statistics[roi]['avg']* self.dosegridscaling
+            maxD = roi_statistics[roi]['max']* self.dosegridscaling
+
+            print(f"{roi:<20}{minD:10.4}{avgD:10.4}{maxD:10.4}")
+
 
     def fluences(self):
         if self.xcoords is None:
