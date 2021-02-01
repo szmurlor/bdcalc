@@ -36,6 +36,9 @@ def do_run(args):
         if hasattr(args,"piers") and args.piers:
             row.append(str(meta["piers"]))
 
+        if hasattr(args,"blizna") and args.blizna:
+            row.append(str(meta["blizna"]))
+
         if hasattr(args,"max_dose") and args.max_dose:
             doses = read_ndarray(rd.output("total_doses.nparray"))
             row.append(np.max(doses))
@@ -57,6 +60,7 @@ if __name__ == "__main__":
     parser.add_argument('--absolute-folder',  action="store_true", help="wyświetl bezględną ścieżkę do folderu")
     parser.add_argument('--patient-id',  action="store_true", help="wyświetl identyfikator pacjenta")
     parser.add_argument('--piers',  action="store_true", help="znajdź czy przypadek jest typu piersi")
+    parser.add_argument('--blizna',  action="store_true", help="znajdź czy przypadek jest typu blizna")
     parser.add_argument('--plan-label',  action="store_true", help="wyświetla nazwę planu")
     parser.add_argument('--max-dose',  action="store_true", help="znajdź wartości maksymalne dawki w każydm zbiorze")
     parser.add_argument('-f', '--output-file', help="nazwa pliku do której zapisać wynik", default=None)

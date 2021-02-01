@@ -23,7 +23,7 @@ from volumedata import VolumeData
 SOURCE_TO_SURFACE_DISTANCE = 1000
 makeControlData = False
 SCALE = 0.1
-
+skip_vti = True
 
 def default_options():
     return {
@@ -238,24 +238,24 @@ def do_run(args):
     plan_spacing = (dx, dy, dz)
     ctOnPlanningGrid = ctVolumeData.approximateCTOnPlanGrid( plan_origin, plan_spacing, plan_dimensions )
 
-    ## zapisuję do lików VTI
+    ## zapisuję do plików VTI
     npar = ctOnPlanningGrid
-    VolumeData.saveVolumeGridToFile(plan_spacing, plan_dimensions, plan_origin, 
+    if not skip_vti:
+        VolumeData.saveVolumeGridToFile(plan_spacing, plan_dimensions, plan_origin, 
              npar, rass_data.output("approximated_ct"))
 
-
-    VolumeData.saveVolumeGridToFileAsLong(plan_spacing, plan_dimensions, plan_origin, 
+        VolumeData.saveVolumeGridToFileAsLong(plan_spacing, plan_dimensions, plan_origin, 
              roi_marks, rass_data.output("roi_marks"))
 
-    for r in range(0, len(myROIs)):
-        d = np.array(np.bitwise_and(roi_marks, (2 ** r)) / (2 ** r), dtype=np.float32)
-        log.debug(f"ROI: {myROIs[r].name}[{2 ** r}].size() = {np.sum(d)}")
-        log.info(f"Saving roi marks for {myROIs[r].name} to {rass_data.output(f'roi_marks_{myROIs[r].name}')}.vti file ...")
+        for r in range(0, len(myROIs)):
+            d = np.array(np.bitwise_and(roi_marks, (2 ** r)) / (2 ** r), dtype=np.float32)
+            log.debug(f"ROI: {myROIs[r].name}[{2 ** r}].size() = {np.sum(d)}")
+            log.info(f"Saving roi marks for {myROIs[r].name} to {rass_data.output(f'roi_marks_{myROIs[r].name}')}.vti file ...")
+            VolumeData.saveVolumeGridToFile(plan_spacing, plan_dimensions, plan_origin, 
+                    d, rass_data.output(f"roi_marks_{myROIs[r].name}"))
+
+
         VolumeData.saveVolumeGridToFile(plan_spacing, plan_dimensions, plan_origin, 
-                d, rass_data.output(f"roi_marks_{myROIs[r].name}"))
-
-
-    VolumeData.saveVolumeGridToFile(plan_spacing, plan_dimensions, plan_origin, 
              totalDoses, rass_data.output("total_doses"))
 
 

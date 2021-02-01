@@ -80,7 +80,7 @@ def do_run(args):
                 if (from_file.startswith("RS")):
                     rs = pydicom.read_file(os.path.join(to_sub_input_dicom, from_file))
                     rois = {}                    
-                    for roi in rs.StructureSetROISequence:
+                    for roi in enumerate(rs.StructureSetROISequence):
                         rois[roi.ROIName] = roi.ROINumber
                     
                     meta["rois"] = rois

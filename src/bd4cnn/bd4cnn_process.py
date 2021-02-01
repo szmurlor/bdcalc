@@ -219,7 +219,7 @@ def do_run(args):
                 pil_im = Image.fromarray(roi_marks_mapped_full[i,:,:].astype(np.uint8))
                 pil_im.save(rd.root_path(args.cnn_output,"roi_mapped_to_max_pil", fname=f"pil_im_{patient_id}_{i}.png"))
             
-            save_ndarray(rd.root_path(args.cnn_output, fname="rois_marks_original.nparray"), roi_marks_original_full.astype(np.int32))
+            save_ndarray(rd.root_path(args.cnn_output, fname="rois_marks_original.nparray"), roi_marks_original_full.astype(np.int64))
             save_ndarray(rd.root_path(args.cnn_output, fname="rois_marks_mapped_to_max.nparray"), roi_marks_mapped_full.astype(np.int32))
 
             ## DOSES
@@ -245,34 +245,35 @@ def do_run(args):
                 pil_im.save(rd.root_path(args.cnn_output, "ct_to_max_pil", fname=f"pil_im_{patient_id}_{i}.png"))
 
 
-            log.info(f"Rozpoczynam zapisywanie {doses_full.shape[0]} plików z danymi o obrazach ROI i dawek w formacie uint8 będą pliki pil dla sieci Mask-RCNN")
-            output = rd.root_path(args.mask_rcnn_output)
-            log.info(f"Folder for mark-rcnn: {output}")
-            pathlib.Path(output).mkdir(exist_ok=True)
-            for i in range(doses_full.shape[0]):
-                image_id = f"{patient_id}_{i}"
-                output_image_id_path = os.path.join(output, image_id)
-                pathlib.Path(output_image_id_path).mkdir(exist_ok=True)
+            if args.mask_rcnn_output != "no_ouput_maskrcnn":
+                log.info(f"Rozpoczynam zapisywanie {doses_full.shape[0]} plików z danymi o obrazach ROI i dawek w formacie uint8 będą pliki pil dla sieci Mask-RCNN")
+                output = rd.root_path(args.mask_rcnn_output)
+                log.info(f"Folder for mark-rcnn: {output}")
+                pathlib.Path(output).mkdir(exist_ok=True)
+                for i in range(doses_full.shape[0]):
+                    image_id = f"{patient_id}_{i}"
+                    output_image_id_path = os.path.join(output, image_id)
+                    pathlib.Path(output_image_id_path).mkdir(exist_ok=True)
 
-                output_pngs = os.path.join(output_image_id_path, "pngs")                
-                pathlib.Path(output_pngs).mkdir(exist_ok=True)
-                plt.imsave(os.path.join(output_pngs, f"{image_id}_rois.png"), roi_marks_mapped_full[i,:,:]) # obrazek z roiami
+                    output_pngs = os.path.join(output_image_id_path, "pngs")                
+                    pathlib.Path(output_pngs).mkdir(exist_ok=True)
+                    plt.imsave(os.path.join(output_pngs, f"{image_id}_rois.png"), roi_marks_mapped_full[i,:,:]) # obrazek z roiami
 
-                output_images = os.path.join(output_image_id_path, "images")
-                pathlib.Path(output_images).mkdir(exist_ok=True)
-                pil_im = Image.fromarray(roi_marks_mapped_full[i,:,:].astype(np.uint8))
-                pil_im.save(os.path.join(output_images, f"pil_{image_id}.png"))
+                    output_images = os.path.join(output_image_id_path, "images")
+                    pathlib.Path(output_images).mkdir(exist_ok=True)
+                    pil_im = Image.fromarray(roi_marks_mapped_full[i,:,:].astype(np.uint8))
+                    pil_im.save(os.path.join(output_images, f"pil_{image_id}.png"))
 
-                output_masks = os.path.join(output_image_id_path, "masks")
-                pathlib.Path(output_masks).mkdir(exist_ok=True)
-                for level in range(int(args.dose_levels)):
-                    level_mask = doses_full[i,:,:].astype(np.int32)
-                    level_mask[ level_mask != level ] = 0
-                    level_mask[ level_mask == level ] = 1
-                    plt.imsave(os.path.join(output_pngs, f"{image_id}_{level}.png"), level_mask) # obrazek z roiami
+                    output_masks = os.path.join(output_image_id_path, "masks")
+                    pathlib.Path(output_masks).mkdir(exist_ok=True)
+                    for level in range(int(args.dose_levels)):
+                        level_mask = doses_full[i,:,:].astype(np.int32)
+                        level_mask[ level_mask != level ] = 0
+                        level_mask[ level_mask == level ] = 1
+                        plt.imsave(os.path.join(output_pngs, f"{image_id}_{level}.png"), level_mask) # obrazek z roiami
 
-                    pil_im = Image.fromarray(level_mask.astype(np.uint8))
-                    pil_im.save(os.path.join(output_masks, f"pil_{image_id}_{level}.png"))
+                        pil_im = Image.fromarray(level_mask.astype(np.uint8))
+                        pil_im.save(os.path.join(output_masks, f"pil_{image_id}_{level}.png"))
         else:
             log.warn(f"Pomijam katalog {sub}, ponieważ w katalogu input brakuje pliku `roi_mapping.json`")
 
@@ -285,7 +286,7 @@ if __name__ == "__main__":
     parser.add_argument('root_folder', help="główny folder, który zawiera analizowane podfoldery")
     parser.add_argument('--dose-levels', type=float, help="liczba poziomów dawek w wyjściowych plikach png", default=255)
     parser.add_argument('--cnn-output', help="nazwa katalogu wynikowego z obrazami", default="ouput_cnn")
-    parser.add_argument('--mask-rcnn-output', help="nazwa katalogu wynikowe z obrazami dla algorytmu Mask-RCNN", default="ouput_maskrcnn")
+    parser.add_argument('--mask-rcnn-output', help="nazwa katalogu wynikowe z obrazami dla algorytmu Mask-RCNN", default="no_ouput_maskrcnn")
     parser.add_argument('-s', "--single", action="store_true", help="gdy podany, to będzie analizować tylko jeden folder bez poszukiwania głęboko")
     parser.add_argument('-p', "--savepng", action="store_true", help="gdy podany, to będzie zapisywać również obrazy w formacie png")
     args = parser.parse_args()
