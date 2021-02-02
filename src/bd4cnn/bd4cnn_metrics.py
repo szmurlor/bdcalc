@@ -10,7 +10,10 @@ log.basicConfig(format='%(asctime)s [%(levelname)s]: %(message)s', level=log.DEB
 
 def do_run(args):
     root_folder = args.root_folder
-    subs = next(os.walk(root_folder))[1]
+    if (hasattr(args,"single") and args.single):
+        subs = [args.root_folder]
+    else:
+        subs = next(os.walk(root_folder))[1]
 
     rows = []
     for sub in subs:
@@ -33,16 +36,6 @@ def do_run(args):
         if hasattr(args,"plan_label") and args.plan_label:
             row.append(meta["plan_label"])
 
-        if hasattr(args,"piers") and args.piers:
-            row.append(str(meta["piers"]))
-
-        if hasattr(args,"blizna") and args.blizna:
-            row.append(str(meta["blizna"]))
-
-        if hasattr(args,"max_dose") and args.max_dose:
-            doses = read_ndarray(rd.output("total_doses.nparray"))
-            row.append(np.max(doses))
-
         rows.append(row)
     
     res = None
@@ -54,15 +47,13 @@ def do_run(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Przechodzi przez podfoldery i przetwarza dane i wyświetla wynik w stabularyzowanej postaci")
+    parser = argparse.ArgumentParser(description="Przechodzi przez podfoldery (lub jeden folder --single) i przetwarza dane i wyświetla wynik w stabularyzowanej postaci")
     parser.add_argument('root_folder', help="główny folder, który zawiera analizowane podfoldery")
     parser.add_argument('--folder',  action="store_true", help="wyśwetl podfolder")
     parser.add_argument('--absolute-folder',  action="store_true", help="wyświetl bezględną ścieżkę do folderu")
     parser.add_argument('--patient-id',  action="store_true", help="wyświetl identyfikator pacjenta")
-    parser.add_argument('--piers',  action="store_true", help="znajdź czy przypadek jest typu piersi")
-    parser.add_argument('--blizna',  action="store_true", help="znajdź czy przypadek jest typu blizna")
     parser.add_argument('--plan-label',  action="store_true", help="wyświetla nazwę planu")
-    parser.add_argument('--max-dose',  action="store_true", help="znajdź wartości maksymalne dawki w każdym zbiorze")
+    parser.add_argument('--single',  action="store_true", help="przetwarza tylko jeden folder podany bezpośrednio jako root")
     parser.add_argument('-f', '--output-file', help="nazwa pliku do której zapisać wynik", default=None)
     args = parser.parse_args()
 

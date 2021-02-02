@@ -76,14 +76,21 @@ def do_run(args):
                     else:
                         meta["lewa"] = False
 
+                if (from_file.startswith("RD")):
+                    rd = pydicom.read_file(os.path.join(to_sub_input_dicom, from_file))
+                    meta['DoseGridScaling'] = rd.DoseGridScaling
+
 
                 if (from_file.startswith("RS")):
                     rs = pydicom.read_file(os.path.join(to_sub_input_dicom, from_file))
                     rois = {}                    
-                    for roi in enumerate(rs.StructureSetROISequence):
+                    roi_bits = {}                    
+                    for idx,roi in enumerate(rs.StructureSetROISequence):
                         rois[roi.ROIName] = roi.ROINumber
+                        roi_bits[roi.ROIName] = idx+1
                     
                     meta["rois"] = rois
+                    meta["roi_bits"] = rois
 
 
         with open(os.path.join(to_sub, "meta.json"), "w") as fout:
@@ -95,7 +102,7 @@ def do_run(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Przechodzi przez podfoldery zadanego folderu i zakłada, że każdym podfolderze znajduje się " +
+    parser = argparse.ArgumentParser(description="Przechodzi przez podfoldery zadanego folderu i zakłada, że w każdym podfolderze znajduje się " +
                                                  " jeden przypadek (pacjent) z czterema rodzajami plików DICOM: RD (dawki), RS (kontury), CT (obrazy) i RP (plan). " +
                                                  "W wyniku w folderze docelowym tworzy strukturę plików przygotowaną do przetwarzania ROIów i dawek. " + 
                                                  "Jest to narzędzie do przygotowywania bazy danych plikowych do uczenia sieci CNN.")
