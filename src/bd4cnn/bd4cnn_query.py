@@ -10,7 +10,10 @@ log.basicConfig(format='%(asctime)s [%(levelname)s]: %(message)s', level=log.DEB
 
 def do_run(args):
     root_folder = args.root_folder
-    subs = next(os.walk(root_folder))[1]
+    if hasattr(args, "single") and args.single:
+        subs = [root_folder]
+    else:
+        subs = next(os.walk(root_folder))[1]
 
     rows = []
     for sub in subs:
@@ -63,6 +66,7 @@ if __name__ == "__main__":
     parser.add_argument('--blizna',  action="store_true", help="znajdź czy przypadek jest typu blizna")
     parser.add_argument('--plan-label',  action="store_true", help="wyświetla nazwę planu")
     parser.add_argument('--max-dose',  action="store_true", help="znajdź wartości maksymalne dawki w każdym zbiorze")
+    parser.add_argument('--single',  action="store_true", help="przeszukaj tylko jeden folder")
     parser.add_argument('-f', '--output-file', help="nazwa pliku do której zapisać wynik", default=None)
     args = parser.parse_args()
 

@@ -94,26 +94,38 @@ def do_run(args):
             with open(rd.root("meta.json")) as fin:
                 meta_data.update(json.load(fin))
 
+        meta_processing = {}
+        meta_processing['cmd'] = " ".join(sys.argv)
+
         patient_id = meta_data["patient_id"] if "patient_id" in meta_data else sub
+        meta_processing['patient_id'] = patient_id
 
         log.info(f"Analizuję pacjenta: {patient_id}")
 
         log.info("Wczytuję dawki")
-        doses = read_ndarray(rd.output("total_doses.nparray"))
+        meta_processing['doses_source'] =  rd.output("total_doses.nparray")
+        doses = read_ndarray(meta_processing['doses_source'])
 
         ########################################################################
         # Wykonuję progowanie dawek (czyli wartości przewidywanych)
         # Normalizacja dawki do wartości maksymalnej dawki dla danego pacjenta
         ########################################################################
-        log.info(f"Proguję dawki do {args.dose_levels} poziomów względem wartości maksymalnej: {np.max(doses)}")
+        log.info(f"Proguję dawki do {args.dose_levels} poziomów względem wartości maksymalnej: {max_dose_global}")
+        meta_processing['dose_levels'] = int(args.dose_levels)
+        meta_processing['max_dose_global'] = float(max_dose_global)
+        meta_processing['max_dose'] = float(np.max(doses))
+        meta_processing['dose_levels_scale'] =  float(args.dose_levels / max_dose_global)
+        meta_processing['dose_levels_upscale'] =  float(max_dose_global / args.dose_levels)
 
-        # doses = np.round(doses/np.max(doses) * args.dose_levels)
         doses = np.round(doses/max_dose_global * args.dose_levels)
 
         log.info("Wczytuję informację o znacznikach ROI.")
-        roi_marks = read_ndarray(rd.output("roi_marks.nparray"), dtype=np.int64)
+        meta_processing['rois_source'] =  rd.output("roi_marks.nparray")
+        roi_marks = read_ndarray(meta_processing['rois_source'], dtype=np.int64)
+
 
         log.info("Wczytuję informację o danych CT.")
+        meta_processing['ct_source'] =  rd.output("approximated_ct.nparray")
         ct = read_ndarray(rd.output("approximated_ct.nparray"))
         
         # wczytuję outline aby zbudować boundingbox, którego ostatecznie nie uzywam, ale ładnie wygląda
@@ -183,6 +195,7 @@ def do_run(args):
         ref_slice_cropped_to_max[ yfrom:yfrom+ref_slice.shape[0],xfrom:xfrom+ref_slice.shape[1] ] = ref_slice
         plt.imsave((f"{root_folder}/ref_slice_{patient_id}_cropped_to_max.png"), ref_slice_cropped_to_max)
 
+        meta_processing['shape_original'] = ", ".join(map(str,roi_marks.shape))
 
         mapping_file = rd.input("roi_mapping.json")
         if not os.path.exists(mapping_file):
@@ -200,7 +213,13 @@ def do_run(args):
             # zetów jest tyle co w roi_marks.shape[0], natomiast rozmiary x i y są z final_shape_max
             roi_marks_mapped_full = np.zeros( (roi_marks.shape[0], final_shape_max[1], final_shape_max[2]) )
             roi_marks_original_full = np.zeros( (roi_marks.shape[0], final_shape_max[1], final_shape_max[2]) )
-                
+
+            meta_processing['shape_final'] = ", ".join(map(str,roi_marks_mapped_full.shape))                
+            meta_processing['shape_final_yfrom'] = int(yfrom)
+            meta_processing['shape_final_xfrom'] = int(xfrom)
+            meta_processing['shape_final_yto'] = int(yfrom+ref_slice.shape[0])
+            meta_processing['shape_final_xto'] = int(xfrom+ref_slice.shape[1])
+
             for (rvalue, rname) in lst:
                 marks = read_ndarray(rd.output(f"roi_marks_{rname}.nparray"), dtype=np.int32) # mniejszy
                 b = (marks == 1) # gdzie wstawic przyporzadkowana w mapowaniu wartosc rvalue?
@@ -222,6 +241,9 @@ def do_run(args):
             save_ndarray(rd.root_path(args.cnn_output, fname="rois_marks_original.nparray"), roi_marks_original_full.astype(np.int64))
             save_ndarray(rd.root_path(args.cnn_output, fname="rois_marks_mapped_to_max.nparray"), roi_marks_mapped_full.astype(np.int32))
 
+            meta_processing['rois_marks_original'] =  "rois_marks_original.nparray"
+            meta_processing['rois_marks_mapped'] =  "rois_marks_mapped_to_max.nparray"
+
             ## DOSES
             doses_full = np.zeros( (doses.shape[0], final_shape_max[1], final_shape_max[2]) )
             doses_full[:, yfrom:yfrom+ref_slice.shape[0],xfrom:xfrom+ref_slice.shape[1]] = doses
@@ -233,6 +255,7 @@ def do_run(args):
                 pil_im.save(rd.root_path(args.cnn_output, "doses_to_max_pil", fname=f"pil_im_{patient_id}_{i}.png"))
 
             save_ndarray(rd.root_path(args.cnn_output, fname=f"doses_to_max.nparray"), doses_full.astype(np.float32))
+            meta_processing['doses_mapped'] =  "doses_to_max.nparray"
 
             # CT
             ct_full = np.zeros( (doses.shape[0], final_shape_max[1], final_shape_max[2]) )
@@ -277,6 +300,8 @@ def do_run(args):
         else:
             log.warn(f"Pomijam katalog {sub}, ponieważ w katalogu input brakuje pliku `roi_mapping.json`")
 
+        with open(rd.root_path(args.cnn_output, fname=f"meta_processing.json"), "w") as f:
+            json.dump(meta_processing, f, indent=4,sort_keys=True)
 
     return
 
