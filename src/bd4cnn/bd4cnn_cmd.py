@@ -80,7 +80,7 @@ def do_run(args):
                             roi_bits[roi.ROIName] = idx+1
                         
                         meta["roi_nums"] = rois
-                        meta["roi_bits"] = rois
+                        meta["roi_bits"] = roi_bits
                     
             with open(rd.root("meta.json"), "w") as f:
                 json.dump(meta, f, indent=4, sort_keys=True)

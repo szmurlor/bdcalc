@@ -25,6 +25,7 @@ Vxx=% of the whole OAR receiving ≥ xx Gy
 Zródło: http://sub.chimei.org.tw/55700/images/pdf/03.pdf, str. 5 
 """
 def calc_statistics(meta, meta_processing, roi_file, doses_file, dtype):
+    metrics = {}
 
     # reading data
     rois = read_ndarray(roi_file, dtype=np.int64)
@@ -93,8 +94,22 @@ def calc_statistics(meta, meta_processing, roi_file, doses_file, dtype):
                 #ax.plot(np.arange(p80,p100-0.01,0.01), cs(np.arange(p80,p100-0.01,0.01)), label='spline')
                 #plt.show()
         
-        if not "zz" in k:
+        if not "zz" in k and np.max(mask) > 0:
             print(f"{k:>30} [{b:>10}]{min:>6.2f} | {max:>6.2f} | {avg:>6.2f} | {d99:>6.2f} | {d98:>6.2f} | {d95:>6.2f} | {v95:>6.2f} | {v98:>6.2f} | {v105:>6.2f}")
+
+            metrics[k] = {
+                'bit': int(b),
+                'min': float(min),
+                'max': float(max),
+                'avg': float(avg),
+                'd99': float(d99),
+                'd95': float(d95),
+                'v95': float(v95),
+                'v98': float(v98),
+                'v105': float(v105)
+            }
+
+    return metrics
     
 
 def do_run(args):
@@ -104,9 +119,8 @@ def do_run(args):
     else:
         subs = [os.join(root_folder,sub) for sub in next(os.walk(root_folder))[1] ]
 
-    rows = []
+    res = {}
     for sub in subs:
-        row = []
         rd = RASSData(root_folder=sub)
 
         with open(rd.root("meta.json")) as f:
@@ -131,18 +145,24 @@ def do_run(args):
         meta_processing['dose_levels_scale'] = float(levels) / float(total_max)
         meta_processing['dose_levels_upscale'] = float(total_max) / float(levels)
 
-        calc_statistics(meta, meta_processing, 
+        metrics = calc_statistics(meta, meta_processing, 
                 os.path.join(sub, args.roi_subfolder, meta_processing['rois_marks_original']), 
                 os.path.join(sub, args.doses_subfolder_file),
-                dtype=np.dtype(args.doses_dtype))
+                dtype=np.dtype(args.doses_dtype) )
+
+        out_data = {
+            'roi_marks': os.path.join(sub, args.roi_subfolder, meta_processing['rois_marks_original']),
+            'doses': os.path.join(sub, args.doses_subfolder_file),
+            'doses_dtype': str(np.dtype(args.doses_dtype)),
+            'max_dose_global': meta_processing['max_dose_global'],
+            'dose_levels_scale': meta_processing['dose_levels_scale'],
+            'target_dose': meta['TargetPrescriptionDose'],
+            'DoseGridScaling': meta['DoseGridScaling'],
+            'metrics': metrics
+        }
+
+        res[sub] = out_data
         
-        rows.append(row)
-    
-    res = None
-    for r in rows:
-        rjoined = ";".join(map(str,r))
-        res = "\n".join([res, rjoined]) if res is not None else rjoined
-    
     return res
 
 
@@ -155,14 +175,16 @@ if __name__ == "__main__":
     parser.add_argument('--total-max', help="skaluj do wartości maksymalnej (jeżeli nie zostanie podana żadna wartość to użyję z pliku '[roi_subfolder]/meta_processing.json')")
     parser.add_argument('--levels', help="liczba poziomów  (jeżeli nie zostanie podana żadna wartość to użyję z pliku '[roi_subfolder]/meta_processing.json')")
     parser.add_argument('--doses-dtype', help="typ danych w plikach nparray w dawkach - domyślnie 'f4' (np.float32), inne opcje: 'u1' (np.uint8) (roi zawsze są np.int64)", default="f4")
-    parser.add_argument('-f', '--output-file', help="nazwa pliku do której zapisać wynik", default=None)
+    parser.add_argument('-f', '--output-file', help="nazwa pliku do której zapisać wynik z metrykami w formacie json", default=None)
     args = parser.parse_args()
 
     res = do_run(args)
 
     if hasattr(args, 'output_file') and args.output_file is not None:
-        with open(args.output_file,"w") as f:
-            f.write(res)
+        if (args.output_file[-4] != '.json'):
+            args.output_file = args.output_file + '.json'
+        with open(os.path.join( args.root_folder, args.output_file), "w") as f:
+            json.dump(res, f, indent=4, sort_keys=True)
     else:
         print(res)
 

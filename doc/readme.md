@@ -1,3 +1,10 @@
+## Uruchamianie Jupytera
+
+```
+jupyter notebook --ip=goope-gpu-2.iem.pw.edu.pl
+```
+
+
 ## Przetwarzanie plików do uczenia sieci neuronowych
 
 1. Zakładam że jest jakiś folder nadrzędny, a w nim znajdują się podfoldery,
