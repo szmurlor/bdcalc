@@ -33,24 +33,27 @@ def save_ndarray(fname, data):
 
 # noinspection PyUnresolvedReferences
 def read_ndarray(fname, dtype=np.float32):
-    data = None
-    log.info("Reading ndarray data from file: %s" % fname)
     if os.path.isfile(fname):
-        fin = open(fname, "rb")
-        bdim = fin.read(4)
-        ndim = struct.unpack("i", bdim)[0]
+        data = None
+        log.info("Reading ndarray data from file: %s" % fname)
+        if os.path.isfile(fname):
+            fin = open(fname, "rb")
+            bdim = fin.read(4)
+            ndim = struct.unpack("i", bdim)[0]
 
-        shape = []
-        for i in range(ndim):
-            bsize = fin.read(4)
-            nsize = struct.unpack("i", bsize)[0]
-            shape.append( nsize )
-        
-        log.debug(f"The ndarray data has shape: {shape}")
+            shape = []
+            for i in range(ndim):
+                bsize = fin.read(4)
+                nsize = struct.unpack("i", bsize)[0]
+                shape.append( nsize )
+            
+            log.debug(f"The ndarray data has shape: {shape}")
 
-        data = np.fromfile(fin, dtype, np.prod(shape))
-        data = np.reshape(data, shape)
+            data = np.fromfile(fin, dtype, np.prod(shape))
+            data = np.reshape(data, shape)
 
-        fin.close()
+            fin.close()
 
-    return data
+        return data
+    else:
+        raise Exception(f"File does not exist: {fname}")

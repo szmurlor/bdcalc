@@ -103,6 +103,7 @@ def calc_statistics(meta, meta_processing, roi_file, doses_file, dtype):
                 'max': float(max),
                 'avg': float(avg),
                 'd99': float(d99),
+                'd98': float(d98),
                 'd95': float(d95),
                 'v95': float(v95),
                 'v98': float(v98),

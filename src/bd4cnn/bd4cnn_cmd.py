@@ -77,7 +77,11 @@ def do_run(args):
                         roi_bits = {}                    
                         for idx,roi in enumerate(rs.StructureSetROISequence):
                             rois[roi.ROIName] = roi.ROINumber
-                            roi_bits[roi.ROIName] = idx+1
+
+                        with open(rd.output("roi_mapping.txt")) as f:
+                            for line in f:
+                                cols = line.split(":")
+                                roi_bits[cols[0]] = int(np.log2(int(cols[1])))+1
                         
                         meta["roi_nums"] = rois
                         meta["roi_bits"] = roi_bits
@@ -100,8 +104,6 @@ def do_run(args):
             if hasattr(args,"plan_label") and args.plan_label:
                 row.append(meta["plan_label"])
 
-        rows.append(row)
-    
     res = None
     for r in rows:
         rjoined = ";".join(map(str,r))
