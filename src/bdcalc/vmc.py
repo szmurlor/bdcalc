@@ -100,20 +100,22 @@ def read_doses(filename):
         data = f.read(8)
         dmax = struct.unpack_from('d', data, 0)[0]
         doses = numpy.fromfile(f, numpy.short, nreg)
-    f.close()
-    return doses
 
-def ala(x,y):
-    return x+y
+    f.close()
+
+    return doses
 
 @ray.remote
 def calculate_single_beamlet(beamlets, opt):
-    res = {"beamlets": []}
+    res = {"beamlets": [],
+           "fluence_doses": None}
     try:
         condInterestingVoxels = read_matrix(opt["interesting_voxels"])
         dose_tolerance_min = float(opt["dose_tolerance_min"])
         beam_no = opt["beam_no"]
         hostname = socket.gethostname()
+
+        fluence_doses = None
 
         import tempfile
 
@@ -140,6 +142,13 @@ def calculate_single_beamlet(beamlets, opt):
                 beamlet_doses = read_doses(doses_filename)
                 # --------------------------------------------------------------------------------------------
 
+                if 'fluence' in beamlet and beamlet['fluence'] is not None:
+                    print(f"Fluence: {beamlet['fluence']}")
+                    if fluence_doses is None:
+                        fluence_doses = beamlet_doses.copy() * float(beamlet['fluence'])
+                    else:
+                        fluence_doses += beamlet_doses * float(beamlet['fluence'])
+
                 if opt["delete_doses_file_after"]:
                     os.remove(doses_filename)
 
@@ -157,6 +166,9 @@ def calculate_single_beamlet(beamlets, opt):
                         maxDoseThisBeamlet = numpy.max(beamlet_doses)
                         print(f"Wycinam tylko voksele, w ktorych dawka jest wieksza od: {maxDoseThisBeamlet * dose_tolerance_min} ({dose_tolerance_min*100}%%)")
                         cond = (beamlet_doses > (maxDoseThisBeamlet * dose_tolerance_min)) & (condInterestingVoxels)
+
+                        # //? add 
+                        
                         vdoses = beamlet_doses[cond]
                         vindexes = numpy.where(cond)[0]  # zwraca indeksy pasujących
                         mdoses = numpy.zeros((len(vdoses), 2), dtype=numpy.float32)
@@ -164,10 +176,14 @@ def calculate_single_beamlet(beamlets, opt):
                         mdoses[:, 1] = vdoses
 
                         beamlet["doses_map"] = mdoses
+
+                    
                 else:
                     log.error("ERROR! beamlet_doses == None!")
 
                 res['beamlets'].append(beamlet)
+
+        res["fluence_doses"] = fluence_doses
 
         return res
     except:
@@ -306,27 +322,46 @@ class VMC:
         self.doses_dos_path = None
         self.cluster_config_file = None
 
+        # to są dawki całkowite - bez obcinania z uwzględnieniem fluencji
+        self.fluence_total_doses = None
+
     def postprocess(self, response):
         start = time.time()
 
         #log.info(f"The response type is: {type(response)}")
         if response is not None:
+            if "fluence_doses" in response and response["fluence_doses"] is not None:
+                try:
+                    self.lock.acquire()
+                    if self.fluence_total_doses is None:
+                        self.fluence_total_doses = response["fluence_doses"].copy()
+                    else:
+                        self.fluence_total_doses += response["fluence_doses"]
+                except:
+                    traceback.print_exc()
+                finally:
+                    self.lock.release()
+
             for beamlet in response['beamlets']:
                 beamlet_idx = beamlet['idx']
                 log.info("Starting postprocessing of beamlet [%d]" % beamlet_idx)
                 mdoses = beamlet["doses_map"]
+
                 #log.info("Size of interesting doses for %s is: %d" % (beamlet_idx, mdoses.shape[0]))
 
                 #print(f"max mdoses = {numpy.max(mdoses[:,1])}")
                 self.total_doses[mdoses[:,0].astype(int)] = self.total_doses[mdoses[:,0].astype(int)] + mdoses[:,1]
 
-                self.lock.acquire()
                 try:
-                    self.beamlets_doses[beamlet_idx] = mdoses
+                    self.lock.acquire()
+                    self.beamlets_doses[beamlet_idx] = mdoses.copy()
                 except:
                     traceback.print_exc()
                 finally:
                     self.lock.release()
+
+            response["fluence_doses"] = None
+            response["beamlets"] = None
 
         end = time.time()
         #log.info("Postprocessing time: %s s" % (end - start))
@@ -461,6 +496,17 @@ class VMC:
             npar = self.approximateCTOnPlanGrid(ctVolumeData)
 
 
+        # Zapisywanie danych do formatu vti
+        log.info("Zapisuję Przed skalowaniem dane gęstości masy z CT do pliku: %s" % self.rass_data.output("approximated_ct_before_scale"))
+        grid = VolumeData.createGrid((self.spacing[0], self.spacing[1], self.spacing[2]), (self.n[0], self.n[1], self.n[2]), (self.orig[0], self.orig[1], self.orig[2]))
+        array = VolumeData.createFloatArray(grid)
+        array.SetVoidArray(npar, numpy.prod(npar.shape), 1)
+        grid.GetPointData().SetScalars(array)
+        volume = VolumeData(grid)
+        volume.save(self.rass_data.output("approximated_ct_before_scale"))
+        log.info("Zapisałem przeskalowane dane gęstości masy z CT do pliku: %s" % self.rass_data.output("approximated_ct_before_scale"))
+
+
         ###################################################################################
         # Skalowanie wartości Hounsfielda (-1000-6000) do zakresu (0-4) - używanego przez VMC
         # Skalowanie dwuetapowe:
@@ -505,9 +551,11 @@ class VMC:
         npar[cond2] *= 1.1538
         npar[cond2] += -0.15000
 
+        npar[npar < 0] = 0
+
 
         if (self.water_phantom):
-            warning("Warning! Applying WATER PHANTOM transformation to CT data. All voxel will have scaled Hounsfield number equal to 1.")
+            log.info("Warning! Applying WATER PHANTOM transformation to CT data. All voxel will have scaled Hounsfield number equal to 1.")
             npar[:] = 1
 
         if (v2Drow is not None):

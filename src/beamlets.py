@@ -5,6 +5,8 @@ import pydicom as dicom
 import numpy as np
 import vtk
 from vtk import vtkPoints, vtkXMLPolyDataWriter, vtkPolyData, vtkCellArray, vtkFloatArray
+from common import log
+
 
 SOURCE_TO_ISOCENTER_DISTANCE = 1000
 RAY_LENGTH = 2.0
@@ -24,6 +26,7 @@ class Beamlets:
 		# print("Isocenter: %f, %f, %f" % (self.isocenter[0], self.isocenter[1], self.isocenter[2]))
 
 		compensator = beam.CompensatorSequence[0]
+		log.info(f"Getting fluence maps plan from: {compensator.CompensatorType}")
 		self.rows = compensator.CompensatorRows
 		self.columns = compensator.CompensatorColumns
 		self.hx = float(compensator.CompensatorPixelSpacing[0])

@@ -30,7 +30,7 @@ services:
       mode: global
       resources:
         limits:
-          cpus: "8"
+                #cpus: "8"
           memory: 8192M
       restart_policy:
         condition: on-failure
