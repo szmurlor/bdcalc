@@ -8,7 +8,8 @@ def getnode():
     #return ray.services.get_node_ip_address()
     return 1
 
-ray.init(address="ray-1.iem.pw.edu.pl:6379")
+#ray.init(address="ray-1.iem.pw.edu.pl:6379")
+ray.init(address="goope-gpu-5.iem.pw.edu.pl:6379")
 #print("Connected")
 
 #exit(1)

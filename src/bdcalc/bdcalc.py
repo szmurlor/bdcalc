@@ -37,7 +37,8 @@ class NoRSFileException(Exception):
 #ray.init(redis_address=options["ray_redis_address"])        
 #ray.init(redis_address="172.17.0.2:59422")
 #ray.init(address="ham-10:6379")
-ray.init(address="ray-1:6379")
+#ray.init(address="ray-1:6379")
+ray.init(address="goope-gpu-5:6379")
 #ray.init(ignore_reinit_error=True)
 import vmc
 
