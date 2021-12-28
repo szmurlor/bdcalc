@@ -61,15 +61,17 @@ class RT:
         self.rd = RASSData(root_folder=folder)
         self.dicom_files = {}
 
-        self.ctgriddata = "Call read_ct() to initialize."
+        self._ctgriddata = None # "Call read_ct() to initialize."
         self.map_ctsopid = "Call read_ct() to initialize."
-        self.ctdata_array = "Call read_ct() to initialize."
-        self.ctdata = "Call read_ct() to initialize."
-        self.rtss = "Call read_rs() to initialize."
-        self._rdata = "Call read_rs() to initialize."
-        self.ctgriddata = "Call read_plan_geometry_from_doses() to initialize."
-
+        self._ctdata_array = None # "Call read_ct() to initialize."
+        self._ctdata_plan_array = None # "Call get_ct(plan=True) to initialize."
+        self._rtss = None # "Call get_rtss() to initialize."
+        self._rdata_ct = None # "Call get_roi_labels_ct() to initialize."
+        self._rdata_plan = None # "Call get_roi_labels_plan() to initialize."
+        self._plangriddata = None # "Call get_plan_griddata() to initialize."
         self._find_dicoms()
+        self._total_doses = None
+        self._beam_doses = None
 
     def __str__(self) -> str:
         s = "[RT: dicom_files:" + str(self.rd) + "\n"
@@ -93,6 +95,16 @@ class RT:
         self.dicom_files['rtplan'] = plan
         self.dicom_files['ct'] = ct_files_list
         self.dicom_files['rtdoses'] = doses_files_list
+
+    def get_ct(self, plan=False):
+        if self._ctdata_array is None:
+            self.read_ct()
+        if plan:
+            if self._ctdata_plan_array is None:
+                self._ctdata_plan_array = self.sample_ct_over_plan()
+            return self._ctdata_plan_array
+        else:
+            return self._ctdata_array
 
 
     def read_ct(self):
@@ -137,92 +149,97 @@ class RT:
             raise Exception(f"Invalid data! The distances between CT slices are not equal in the DICOM data and based on location atribute: min_dicom_data: {min(thicknesses_dc)} != min_location: {min(thicknesses)}")
 
 
-        self.ctgriddata = (     ct.ImagePositionPatient[0]*SCALE, ct.ImagePositionPatient[1]*SCALE, minz*SCALE,
+        self._ctgriddata = (     ct.ImagePositionPatient[0]*SCALE, ct.ImagePositionPatient[1]*SCALE, minz*SCALE,
                                 ct.PixelSpacing[0]*SCALE, ct.PixelSpacing[1]*SCALE, min(thicknesses)*SCALE,
                                 int(ct.Columns), int(ct.Rows), len(ctdata))
-        self.ctdata = ctdata
 
-        self.ctdata_array = np.zeros( (self.ctnz(), self.ctny(), self.ctnx()) )
-        for i, ct in enumerate(self.ctdata):
-            self.ctdata_array[i,:,:] = ct["image_data"]
+        self._ctdata_array = np.zeros( (self.ctnz(), self.ctny(), self.ctnx()) )
+        for i, ct in enumerate(ctdata):
+            self._ctdata_array[i,:,:] = ct["image_data"]
 
-        return self.ctdata_array
+        return self._ctdata_array
 
-    def read_plan_geometry_from_doses(self):
-        dfs = self.dicom_files["rtdoses"]
-        if len(dfs) > 0:
-            # read from the first file
-            doses = dicom.read_file(dfs[0])
+    def get_ct_griddata(self):
+        if self._ctgriddata is None:
+            self.get_ct()
 
-            dnx = doses.Columns
-            dny = doses.Rows
-            dnz = int(doses.NumberOfFrames)
+        return self._ctgriddata
 
-            ddx = doses.PixelSpacing[0] * SCALE
-            ddy = doses.PixelSpacing[1] * SCALE
+    def get_plan_griddata(self):
+        if self._plangriddata is None:
+            dfs = self.dicom_files["rtdoses"]
+            if len(dfs) > 0:
+                # read from the first file
+                doses = dicom.read_file(dfs[0])
 
-            if (len(doses.GridFrameOffsetVector) > 2):
-                zoffsets = list(map(float, doses.GridFrameOffsetVector))
-                for i in range(len(zoffsets)):
-                    zoffsets[i] *= SCALE
-                ddz = zoffsets[1] - zoffsets[0]
-                ddv = ddx * ddy * ddz
+                dnx = doses.Columns
+                dny = doses.Rows
+                dnz = int(doses.NumberOfFrames)
+
+                ddx = doses.PixelSpacing[0] * SCALE
+                ddy = doses.PixelSpacing[1] * SCALE
+
+                if (len(doses.GridFrameOffsetVector) > 2):
+                    zoffsets = list(map(float, doses.GridFrameOffsetVector))
+                    for i in range(len(zoffsets)):
+                        zoffsets[i] *= SCALE
+                    ddz = zoffsets[1] - zoffsets[0]
+                    ddv = ddx * ddy * ddz
+                else:
+                    raise Exception(f"GridFrameOffsetVector in the {dfs[0]} has less than 2 items.")
+
+                dox = float(doses.ImagePositionPatient[0]) * SCALE
+                doy = float(doses.ImagePositionPatient[1]) * SCALE
+                doz = float(doses.ImagePositionPatient[2]) * SCALE
+
+                self._plangriddata = (dox, doy, doz, ddx, ddy, ddz, dnx, dny, dnz)
             else:
-                raise Exception(f"GridFrameOffsetVector in the {dfs[0]} has less than 2 items.")
+                raise Exception("The RTDoses files list is empty. Use _find_dicoms() first, or there are no RT doses files in the dicom folder.")
 
-            dox = float(doses.ImagePositionPatient[0]) * SCALE
-            doy = float(doses.ImagePositionPatient[1]) * SCALE
-            doz = float(doses.ImagePositionPatient[2]) * SCALE
-
-            self.plangriddata = (dox, doy, doz, ddx, ddy, ddz, dnx, dny, dnz)
-
-            return self.plangriddata
-        else:
-            raise Exception("The RTDoses files list is empty. Use _find_dicoms() first, or there are no RT doses files in the dicom folder.")
-
+        return self._plangriddata
 
     def read_plan(self):
         plan = dicom.read_file(self.dicom_files["rtplan"])
 
         
     def cto(self):
-        return self.ctgriddata[0:3]
+        return self.get_ct_griddata()[0:3]
 
     def ctox(self):
-        return self.ctgriddata[0]
+        return self.get_ct_griddata()[0]
 
     def ctoy(self):
-        return self.ctgriddata[1]
+        return self.get_ct_griddata()[1]
 
     def ctoz(self):
-        return self.ctgriddata[2]
+        return self.get_ct_griddata()[2]
 
     def ctn(self, inverted=False):
         if inverted:
-            return self.ctgriddata[6:9][::-1]
+            return self.get_ct_griddata()[6:9][::-1]
         else:
-            return self.ctgriddata[6:9]
+            return self.get_ct_griddata()[6:9]
 
     def ctnx(self):
-        return int(self.ctgriddata[6])
+        return int(self.get_ct_griddata()[6])
 
     def ctny(self):
-        return int(self.ctgriddata[7])
+        return int(self.get_ct_griddata()[7])
 
     def ctnz(self):
-        return int(self.ctgriddata[8])
+        return int(self.get_ct_griddata()[8])
 
     def ctd(self):
-        return self.ctgriddata[3:6]
+        return self.get_ct_griddata()[3:6]
 
     def ctdx(self):
-        return self.ctgriddata[3]
+        return self.get_ct_griddata()[3]
 
     def ctdy(self):
-        return self.ctgriddata[4]
+        return self.get_ct_griddata()[4]
 
     def ctdz(self):
-        return self.ctgriddata[5]
+        return self.get_ct_griddata()[5]
 
     def ct_x_range(self, center=True):
         dx2 = self.ctdx()/2 if center else 0
@@ -243,40 +260,43 @@ class RT:
                          self.ctdz())
 
     def plano(self):
-        return self.plangriddata[0:3]
+        return self.get_plan_griddata()[0:3]
 
     def planox(self):
-        return self.plangriddata[0]
+        return self.get_plan_griddata()[0]
 
     def planoy(self):
-        return self.plangriddata[1]
+        return self.get_plan_griddata()[1]
 
     def planoz(self):
-        return self.plangriddata[2]
+        return self.get_plan_griddata()[2]
 
-    def plann(self):
-        return self.plangriddata[6:9]
+    def plann(self, inverted=False):
+        if inverted:
+            return self.get_plan_griddata()[6:9][::-1]
+        else:
+            return self.get_plan_griddata()[6:9]
 
     def plannx(self):
-        return int(self.plangriddata[6])
+        return int(self.get_plan_griddata()[6])
 
     def planny(self):
-        return int(self.plangriddata[7])
+        return int(self.get_plan_griddata()[7])
 
     def plannz(self):
-        return int(self.plangriddata[8])
+        return int(self.get_plan_griddata()[8])
 
     def pland(self):
-        return self.plangriddata[3:6]
+        return self.get_plan_griddata()[3:6]
 
     def plandx(self):
-        return self.plangriddata[3]
+        return self.get_plan_griddata()[3]
 
     def plandy(self):
-        return self.plangriddata[4]
+        return self.get_plan_griddata()[4]
 
     def plandz(self):
-        return self.plangriddata[5]
+        return self.get_plan_griddata()[5]
 
     def plan_z_range(self, center=True):
         _dz = self.plandz() / 2 if center else 0
@@ -339,79 +359,99 @@ class RT:
             return res.astype(int)
 
     
-    def roi_markers(self, roi_name=None, roi_number=None, rdata=None):
+    def roi_markers(self, roi_name=None, roi_number=None, rdata=None, plan=False):
+        """
+        By default returns roi markes for CT grid.
+        """
         r = None
 
         if rdata is None:
-            rdata = self._rdata
+            if plan:
+                rdata = self.get_roi_labels_plan()
+            else:
+                rdata = self.get_roi_labels_ct()
 
         if roi_number is not None:
-            r = self.rtss[roi_number]
+            r = self.get_rtss()[roi_number]
         else:
-            for k,v in self.rtss.items():
+            for k,v in self.get_rtss().items():
                 if v["name"] == roi_name:
                     r = v
         
         if r is not None:
             roi_bit = r["roi_bit"]
             
-            return (np.bitwise_and(self.rdata, roi_bit) // roi_bit).astype(np.bool)
+            return (np.bitwise_and(rdata, roi_bit) // roi_bit).astype(np.bool)
         else:
             raise Exception(f"ROI not found for arguments: roi_name={roi_name}, roi_number={roi_number}")            
         
 
-    def read_rs(self):
-        self._rdata = np.zeros(self.ctn(inverted=True), dtype=int )
+    def get_rtss(self, force=False):
+        if self._rtss is None or force:
+            rs = dicom.read_file(self.dicom_files['rtss'])
+
+            rtss = {}
+            for seqno, r in enumerate(rs.StructureSetROISequence):
+                roi_bit = 2 ** seqno
+                roi_number = int(r.ROINumber)
+                rtss[roi_number] = {
+                    "name": r.ROIName,
+                    "roi_bit": roi_bit
+                }
+            self._rtss = rtss
         
-        x = self.ct_x_range()
-        y = self.ct_y_range()
-        xx,yy = np.meshgrid(x,y)
-        xxx = xx.ravel()
-        yyy = yy.ravel()
-        gp = np.vstack( (xxx,yyy) ).T # grid points
+        return self._rtss
 
-        rs = dicom.read_file(self.dicom_files['rtss'])
-        rtss = {}
-        for seqno, r in enumerate(rs.StructureSetROISequence):
-            roi_bit = 2 ** seqno
-            roi_number = int(r.ROINumber)
-            rtss[roi_number] = {
-                "name": r.ROIName,
-                "roi_bit": roi_bit
-            }
 
-            roi_cached_filename = self.rd.processing(f"_cache_{r.ROIName}.npy")
-            if os.path.isfile(roi_cached_filename):
-                log.info(f"Loading labels for ROI: {r.ROIName} from cache file: {roi_cached_filename}")
-                rdata = np.load(roi_cached_filename)
-                log.info(f"Loading done.")
-            else: 
-                log.info(f"Marking labels for ROI: {r.ROIName} with {len(rs.ROIContourSequence[seqno].ContourSequence)} contours (seqno={seqno})...")
-                rdata = np.zeros( (self.ctnz(), self.ctny(), self.ctnx()), dtype=int )
-
-                #if r.ROIName != "Patient Outline":
-                # if r.ROIName != "Larynx":
-                #     continue
-
-                cseq = rs.ROIContourSequence[seqno].ContourSequence
-                for c in cseq:
-                    indices, b = f_mark( (c, self.map_ctsopid, gp) ) 
-
-                    b = b.reshape(self.ctny(), self.ctnx())
-                    for z_idx in indices:
-                        rdata[z_idx, :, :] = np.bitwise_xor( rdata[z_idx, :, :], b )
-
-                log.info(f"Saving to cache file: {roi_cached_filename}")
-                np.save(roi_cached_filename, rdata)
+    def get_roi_labels_ct(self, force_refresh=False, force_relabel=False):
+        if self._rdata_ct is None or force_refresh:
+            roi_cached_filename = self.rd.processing(f"_cache_rois_ct.npy")
+            if os.path.isfile(roi_cached_filename) and not force_relabel:
+                log.info(f"Loading labels for CT ROIs from cache file: {roi_cached_filename}")
+                self._rdata_ct = np.load(roi_cached_filename)
+                log.info(f"Loading CT ROI labels done.")
+            else:
+                self._rdata_ct = np.zeros(self.ctn(inverted=True), dtype=int )
                 
-            # apply roi_bit for all voxels with value one to roi mask 
-            self._rdata = np.bitwise_or( self._rdata, rdata*roi_bit )
-                       
-        self.rtss = rtss
-        return rtss
+                x = self.ct_x_range()
+                y = self.ct_y_range()
+                xx,yy = np.meshgrid(x,y)
+                xxx = xx.ravel()
+                yyy = yy.ravel()
+                gp = np.vstack( (xxx,yyy) ).T # grid points
 
-    def mark_voxels(self):
-        pass
+                rs = dicom.read_file(self.dicom_files['rtss'])
+
+                for seqno, r in enumerate(rs.StructureSetROISequence):
+                    roi_number = int(r.ROINumber)
+                    roi_bit = self.get_rtss()[roi_number]["roi_bit"]
+                    
+                    log.info(f"Marking labels for ROI: {r.ROIName} with {len(rs.ROIContourSequence[seqno].ContourSequence)} contours (seqno={seqno})...")
+                    rdata = np.zeros( (self.ctnz(), self.ctny(), self.ctnx()), dtype=int )
+
+                    cseq = rs.ROIContourSequence[seqno].ContourSequence
+                    for c in cseq:
+                        indices, b = f_mark( (c, self.map_ctsopid, gp) ) 
+
+                        b = b.reshape(self.ctny(), self.ctnx())
+                        for z_idx in indices:
+                            rdata[z_idx, :, :] = np.bitwise_xor( rdata[z_idx, :, :], b )
+
+                    # apply roi_bit for all voxels with value one to roi mask 
+                    self._rdata_ct = np.bitwise_or( self._rdata_ct, rdata*roi_bit )
+
+                log.info(f"Saving to cache file for CT ROI labels: {roi_cached_filename} with approximate file length: {self._rdata_ct.nbytes}")
+                np.save(roi_cached_filename, self._rdata_ct)
+                        
+        return self._rdata_ct
+
+
+    def get_roi_labels_plan(self, force_refresh=False):
+        if self._rdata_plan is None or force_refresh:
+            self._rdata_plan = self.sample_ct_over_plan(data=self.get_roi_labels_ct())
+
+        return self._rdata_plan
+
 
     def get_plan_grid_points(self):
 
@@ -431,7 +471,7 @@ class RT:
 
     def sample_ct_over_plan(self, data=None):
         if data is None:
-            data = self.ctdata_array
+            data = self.get_ct()
         else:
             if np.prod(data.shape) != np.prod(self.ctn()):
                 raise Exception(f"Invalid data to map_ct_over_plan. Expected shape: {self.ctn()}, got: {data.shape}")
@@ -452,58 +492,98 @@ class RT:
 
         return ct_over_plan
 
+    def get_doses(self, beam_no=None):
+        if self._total_doses is None:
+            self._beams = {}
+            plan = dicom.read_file(self.dicom_files['rtplan'])
+            for beam in plan.BeamSequence:
+                bno = int(beam.BeamNumber)
+                rows = beam.CompensatorSequence[0].CompensatorRows
+                cols = beam.CompensatorSequence[0].CompensatorColumns
+                data = np.array(beam.CompensatorSequence[0].CompensatorTransmissionData)
+                data = data.reshape((rows,cols))
+                self._beams[bno] = {
+                    'fluence_data': data,
+                    'sourceDistance': beam.SourceAxisDistance
+                }
+
+            self._total_doses = np.zeros(self.plann(inverted=True))
+            doses = []
+            for dose_filename in self.dicom_files['rtdoses']:
+                d = dicom.read_file(dose_filename)
+                print(f"Read {dose_filename}")
+                doses.append(d)
+
+                bn = 0
+                try:
+                    bn = int(d.ReferencedRTPlanSequence[0].ReferencedFractionGroupSequence[0].ReferencedBeamSequence[0].ReferencedBeamNumber)
+                    self._beams[bn]['doses'] = d.pixel_array
+                    self._total_doses[:] = self._total_doses + d.pixel_array
+                except Exception as e:
+                    log.error(e)
+
+        return self._total_doses
+
+
+
+
+        if beam_no is None:
+            return self._total_doses
+        else:
+            return self._beam_doses[beam_no]
+
 
 if __name__ == "__main__":
     log.info("Starting testing data...")
 
     rt = RT(sys.argv[1])
-    log.info(rt)
-    log.info("config.json " + rt.rd.input("config.json"))
+    ds = rt.get_doses()
+    print(ds.shape)
+    np.save("/tmp/doses", ds)
+    # log.info(rt)
 
-    arr = rt.read_ct()
-    np.save("/tmp/arr", arr)
+    # arr = rt.get_ct()
+    # log.info(f"The arr ct has shape:{arr.shape}")
+    # np.save("/tmp/arr", arr)
 
-    pgi = rt.read_plan_geometry_from_doses()
-    log.info(pgi)
-    log.info(rt.ctgriddata)
 
-    rtss = rt.read_rs()
+    # pgi = rt.get_plan_griddata()
+    # log.info(pgi)
+    # log.info(rt.get_ct_griddata())
+
+    # rtss = rt.get_rtss()
     
-    rname = "Larynx"
-    np.save(f"/tmp/{rname}_roi.npy", rt.roi_markers(roi_name=rname).astype(int))
+    # rname = "Larynx"
+    # np.save(f"/tmp/{rname}_roi_ct.npy", rt.roi_markers(roi_name=rname).astype(int))
 
-    bb = np.zeros( rt.ctn()[::-1], dtype=np.float32 )
+    # # Here testing the mapping of the geomterical coordinates to the CT index coordinates
+    # bb = np.zeros( rt.ctn()[::-1], dtype=np.float32 )
+    # xx = np.arange( rt.planox(), rt.planox() + rt.plandx()*rt.plannx(), rt.plandx())
+    # for px in xx:
+    #     p = (px, rt.planoy(), rt.planoz())
+    #     ip = rt.point2ct_idx(p)
+    #     bb[ip[2], ip[1], ip[0]] = 1
 
-    xx = np.arange( rt.planox(), rt.planox() + rt.plandx()*rt.plannx(), rt.plandx())
-    for px in xx:
-        p = (px, rt.planoy(), rt.planoz())
-        ip = rt.point2ct_idx(p)
-        bb[ip[2], ip[1], ip[0]] = 1
+    #     p = (px, rt.planoy()+rt.plandy()*rt.planny(), rt.planoz())
+    #     ip = rt.point2ct_idx(p)
+    #     bb[ip[2], ip[1], ip[0]] = 1
+    # np.save("/tmp/bb", bb)
 
-        p = (px, rt.planoy()+rt.plandy()*rt.planny(), rt.planoz())
-        ip = rt.point2ct_idx(p)
-        bb[ip[2], ip[1], ip[0]] = 1
+    # # Here testing the mapping of the geomterical coordinates to the PLAN index coordinates
+    # d = np.zeros( rt.plann()[::-1], dtype=np.float32 )
+    # n = rt.point2plan_idx( (0,0,0) )
+    # d[n[2], n[1], n[0]] = 1
+    # np.save("/tmp/doses", d)
 
-    np.save("/tmp/bb", bb)
-
-    d = np.zeros( rt.plann()[::-1], dtype=np.float32 )
-    n = rt.point2plan_idx( (0,0,0) )
-    d[n[2], n[1], n[0]] = 1
-    np.save("/tmp/doses", d)
-
-    planct = rt.sample_ct_over_plan()
-    np.save("/tmp/planct", planct)
+    # # Here testing the sampling over the planning grid of a data.
+    # planct = rt.sample_ct_over_plan()
+    # np.save("/tmp/planct", planct)
     
-    rdata_plan = rt.sample_ct_over_plan(data=rt._rdata)
-    np.save("/tmp/rdata_plan", rdata_plan)
 
-#     for roinum,rd in rtss.items():
-#         #if rd["name"] == "Patient Outline":
-#         if rd["name"] == "Larynx":
-#             Larynx = rt.map_ct_over_plan(data=rd['rdata'])
-#             np.save("/tmp/Larynx", Larynx)
+    # rdata_plan = rt.get_roi_labels_plan()
+    # # rdata_plan = rt.sample_ct_over_plan(data=rt._rdata_ct)
+    # np.save("/tmp/rdata_plan", rdata_plan)
 
-    log.info(rt.rtss)
-    log.info(d.shape)
+    # log.info(rt.get_rtss())
 
 
