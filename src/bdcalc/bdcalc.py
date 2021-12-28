@@ -505,7 +505,10 @@ if __name__ == '__main__':
                 print(totalDoses.shape)
                 totalDosesFile = beam.filename
             continue
+
+        log.info(f"BeamNumber (bn) = {bn}")
         beamDoses[bn] = beam.pixel_array
+        log.info(f"Max dose: {np.max(beam.pixel_array)}")
         if doseScaling is not None and float(beam.DoseGridScaling) != doseScaling:
             log.warning('Strange data: DoseGridScaling is not same all beamlets!')
 
@@ -518,7 +521,7 @@ if __name__ == '__main__':
             totalDoses += beamDoses[bns[i]]
 
     for bn, bd in beamDoses.items():
-        vmc.saveToVTI(rass_data.output(f"eclipse_beam_doses_{bn}.vti"), bd, [dx, dy, dz], [kmax, jmax, imax], [xbase, ybase, zbase])
+        vmc.saveToVTI(rass_data.output(f"eclipse_beam_doses_{bn}.vti"), np.array(bd, dtype=np.float32) * doseScaling, [dx, dy, dz], [kmax, jmax, imax], [xbase, ybase, zbase])
 
 
     log.info(f"Read doses for {len(beamDoses)} beams")
@@ -529,13 +532,13 @@ if __name__ == '__main__':
     log.info(f"kmax, jmax, imax: {kmax}, {jmax, imax}")
     
     #totalDoses = totalDoses[totalDoses.shape[0]-imax:, totalDoses.shape[1]-jmax:, totalDoses.shape[2]-kmax:]
-    log.error("@"*100)
-    log.error("CHANGE IT - manually adjusted shift of the grid!")
-    log.error("CHANGE IT - manually adjusted shift of the grid!")
-    log.error("CHANGE IT - manually adjusted shift of the grid!")
-    log.error("CHANGE IT - manually adjusted shift of the grid!")
-    totalDoses = totalDoses[totalDoses.shape[0]-imax:, 1:jmax+1, totalDoses.shape[2]-kmax:]
-    log.error("@"*100)
+    #log.error("@"*100)
+    #log.error("CHANGE IT - manually adjusted shift of the grid!")
+    #log.error("CHANGE IT - manually adjusted shift of the grid!")
+    #log.error("CHANGE IT - manually adjusted shift of the grid!")
+    #log.error("CHANGE IT - manually adjusted shift of the grid!")
+    #totalDoses = totalDoses[totalDoses.shape[0]-imax:, 1:jmax+1, totalDoses.shape[2]-kmax:]
+    #log.error("@"*100)
 
     log.info(f"Total doses shape after slice: {totalDoses.shape}")
     npTotalDoses = np.array(totalDoses, dtype=np.float32)
@@ -600,6 +603,64 @@ if __name__ == '__main__':
             idxROIBody = i
             log.info(f"Found ROI body ({roiName}): idx = {idxROIBody}")
 
+        def write_contours(filename, lstc):
+            from vtk import vtkPoints, vtkXMLPolyDataWriter, vtkPolyData, vtkCellArray, vtkFloatArray, vtkLine
+        
+            pts = vtkPoints()
+            polydata = vtkPolyData()
+            polydata.SetPoints(pts)
+            lines = vtkCellArray()
+            polydata.SetLines(lines)
+
+            colors = vtkFloatArray()
+            #polydata.GetCellData().SetScalars(colors)
+
+            ip = 0
+            for c in lstc:
+                ips = ip 
+                #print(c)      
+                bFirst = True          
+                for x,y,z in c:
+                    pts.InsertNextPoint([x*0.1,y*0.1,z*0.1])
+                    #colors.InsertValue(ip, rtss.StructureSetROISequence[i].ROINumber)
+                    if not bFirst:
+                        l = vtkLine()
+                        l.GetPointIds().SetId(0, ip-1)
+                        l.GetPointIds().SetId(1, ip)
+                        lines.InsertNextCell(l)
+                    ip += 1
+                    bFirst = False
+
+                if ip > 0:
+                    l = vtkLine()
+                    l.GetPointIds().SetId(0, ip-1)
+                    l.GetPointIds().SetId(1, ips)
+                    lines.InsertNextCell(l)
+
+                #for i in range(self.size):
+                #    pts.InsertNextPoint(self.points[i])
+                #    colors.InsertValue(i, rtss.StructureSetROISequence[i].ROINumber)
+
+                #for i in range(1, pts.GetNumberOfPoints()):
+                #    l = vtk.vtkLine()
+                #    l.GetPointIds().SetId(0, 0)
+                #    l.GetPointIds().SetId(1, i)
+                #    lines.InsertNextCell(l)
+
+            writer = vtkXMLPolyDataWriter()
+            writer.SetFileName(filename)
+            try:
+                writer.SetInput(polydata)
+            except:
+                writer.SetInputData(polydata)
+            writer.Update()
+
+        contours = dicomutils.findContours(rtss, rtss.StructureSetROISequence[i].ROINumber)
+        write_contours(rass_data.output(f"roi_contours_{roiName}_{rtss.StructureSetROISequence[i].ROINumber}.vti"), contours)
+
+
+        
+
     end = time.time()
     log.debug("Found contours in %s s" % (end - start))
 
@@ -627,10 +688,14 @@ if __name__ == '__main__':
             myROIs[r].countVoxels(roi_marks, 2 ** r)
             roi_marks_check = roi_marks
 
+    roi_marks_int = np.array(roi_marks, np.int32)
     for r in range(len(myROIs)):
         log.info("Statistics for %20s: ID=%8d, %7d voxels, vol=%8.1f discrete vol=%8.1f [cm3]" % (
             myROIs[r].name, 2 ** r, myROIs[r].count, myROIs[r].volume / 1000.,
             myROIs[r].count * dv / SCALE / SCALE / SCALE / 1000.0))
+
+        vmc.saveToVTIAsInt(rass_data.output(f"roi_marks_{myROIs[r].name}_{r}_{2**r}.vti"), np.array(np.bitwise_and(roi_marks_int, 2 ** r) == 2 ** r, np.int32), [dx, dy, dz], [kmax, jmax, imax], [xbase, ybase, zbase])
+
 
 
     #################################################################
@@ -661,6 +726,9 @@ if __name__ == '__main__':
     create_pareto_vmc_c.mark_voxels(voxels, v2Drow, kmax, jmax, imax)
     log.info("Finished marking voxels")
     vmc.saveToVTI(rass_data.output("voxels.vti"), voxels, [dx, dy, dz], [kmax, jmax, imax], [xbase, ybase, zbase])
+    vmc.saveToVTIAsInt(rass_data.output("roi_marks.vti"), np.array(roi_marks, np.int32), [dx, dy, dz], [kmax, jmax, imax], [xbase, ybase, zbase])
+
+
 
     #####################################################################
     all_beamlets = get_beamlets_from(plan)

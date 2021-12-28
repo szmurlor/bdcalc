@@ -13,4 +13,4 @@ echo "Starting bdcalc.py from folder: $SCRIPT_DIR/../src/"
 set -e
 
 cd $SCRIPT_DIR/../src
-python3 /doses-nfs/bdcalc/src/bdcalc.py /doses-nfs/sim/$1/ -c /doses-nfs/sim/$1/input/config.json
+python3 /doses-nfs/bdcalc/src/bdcalc/bdcalc.py /doses-nfs/sim/$1/ -c /doses-nfs/sim/$1/input/config.json

@@ -66,7 +66,7 @@ class VolumeData(object):
 		log.debug("Created a long array with %d points" % n)
 		return array
 
-	def createIntegerArray(self, grid):
+	def createIntegerArray(grid):
 		n = grid.GetNumberOfPoints()
 
 		array = vtkIntArray()

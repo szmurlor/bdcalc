@@ -164,8 +164,15 @@ def calculate_single_beamlet(beamlets, opt):
                         # Wynik zapisz w macierzy nwierszy na dwie kolumny. Pierwsza kolumna to indeks voxela, druga dawka
                         ####################################################################################################
                         maxDoseThisBeamlet = numpy.max(beamlet_doses)
-                        print(f"Wycinam tylko voksele, w ktorych dawka jest wieksza od: {maxDoseThisBeamlet * dose_tolerance_min} ({dose_tolerance_min*100}%%)")
-                        cond = (beamlet_doses > (maxDoseThisBeamlet * dose_tolerance_min)) & (condInterestingVoxels)
+                        print(f"Wycinam tylko voksele, w których dawka jest większa od: {maxDoseThisBeamlet * dose_tolerance_min} ({dose_tolerance_min*100}%%)")
+                        cond = (beamlet_doses > (maxDoseThisBeamlet * dose_tolerance_min)) 
+
+                        # expand by conical
+                        d = calc_v2b_dist(beamlet['plan_origin'], beamlet['plan_spacing'], beamlet['plan_n'], beamlet)
+                        cond = cond | (d.reshape(numpy.prod(d.shape)) == 1)
+
+                        # only body (voxels beloging to any roi)
+                        cond = cond & condInterestingVoxels
 
                         # //? add 
                         
@@ -176,6 +183,9 @@ def calculate_single_beamlet(beamlets, opt):
                         mdoses[:, 1] = vdoses
 
                         beamlet["doses_map"] = mdoses
+
+                        if fluence_doses is not None:
+                            fluence_doses[ numpy.invert(condInterestingVoxels) ] = 0
 
                     
                 else:
@@ -265,9 +275,101 @@ def saveToVTI(filename, beamlet_doses, spacing, n, orig):
     volume = VolumeData(grid)
     volume.save(filename)
 
+def saveToVTIAsInt(filename, beamlet_doses, spacing, n, orig):
+    # Zapisywanie danych do formatu vti
+    volume = VolumeData()
+    grid = VolumeData.createGrid(spacing, n, orig)
+    ar = VolumeData.createIntegerArray(grid)
+    ar.SetVoidArray(beamlet_doses, n[0] * n[1] * n[2], 1)
+    grid.GetPointData().SetScalars(ar)
+    volume = VolumeData(grid)
+    volume.save(filename)
+
 def auto_garbage_collect(pct=80.0):
     if psutil.virtual_memory().percent >= pct:
         gc.collect()
+
+
+def calc_v2b_dist(o, s, n, beamlet, vti_file=None):
+    """
+    o[3] - origin of the plan grid
+    s[3] - spacing of the plan grid
+    n[3] - number of intervals in each direction
+
+    beamlet - a dictionary with beamlet specification
+    beamlet = {
+        "origin": {"x": 0.111, ....},
+        "v1": {"x": 0.111, ....},
+        "v2": {"x": 0.121, ....},
+        "v3": {"x": 0.131, ....}
+    }
+
+    """
+
+    # axes coordinates
+    N = numpy.array([numpy.linspace(0, n[0] - 1, n[0]), numpy.linspace(0, n[1] - 1, n[1]), numpy.linspace(0, n[2] - 1, n[2])])
+    PX = numpy.array(o[0] + N[0] * s[0] + 0.5 * s[0])
+    PY = numpy.array(o[1] + N[1] * s[1] + 0.5 * s[1])
+    PZ = numpy.array(o[2] + N[2] * s[2])
+
+    # volume grids (meshgrid)
+    vx = PX * numpy.ones(n[1]).reshape(n[1],1)* numpy.ones(n[2]).reshape(n[2],1,1)
+    vy = numpy.ones(n[0]) * PY.reshape(n[1],1)* numpy.ones(n[2]).reshape(n[2],1,1)
+    vz = numpy.ones(n[0]) * numpy.ones(n[1]).reshape(n[1],1)* PZ.reshape(n[2],1,1)
+    MIX = numpy.array(vx, dtype=numpy.float32)
+    MIY = numpy.array(vy, dtype=numpy.float32)
+    MIZ = numpy.array(vz, dtype=numpy.float32)
+
+    # x0 - the voxel point
+    # x1 - source
+    # x2 - middle of beamlet frame rectangle
+    source = beamlet["origin"]
+    x1 = numpy.array([source['x'],source['y'],source['z']])
+
+    v1 = numpy.array([ beamlet["v1"]["x"], beamlet["v1"]["y"], beamlet["v1"]["z"] ])
+    v2 = numpy.array([ beamlet["v2"]["x"], beamlet["v2"]["y"], beamlet["v2"]["z"] ])
+    v3 = numpy.array([ beamlet["v3"]["x"], beamlet["v3"]["y"], beamlet["v3"]["z"] ])
+    x2 = (v1+v2+v3)/3
+
+    X0X = MIX
+    X0Y = MIY
+    X0Z = MIZ
+
+    # calculate vector Q - the vector indicating direction of beamlet main axis
+    Q = x2 - x1
+    Q = Q / numpy.linalg.norm(Q)
+
+    # project vector P on Q (the Q is normalized)
+    PX = X0X - x1[0]
+    PY = X0Y - x1[1]
+    PZ = X0Z - x1[2]
+    DOT = Q[0]*PX + Q[1]*PY + Q[2]*PZ
+
+    # find distancex of voxels (X0) from the points projected on Q (x1 + Q*DOT)
+    #DX = X0X - (x1[0] + Q[0] * DOT)
+    #DY = X0Y - (x1[1] + Q[1] * DOT)
+    #DZ = X0Z - (x1[2] + Q[2] * DOT)
+
+    # find distance values of the voxels from main beamlet axis
+    #v2b_dist = numpy.array( numpy.sqrt(DX**2 + DY**2 + DZ**2), dtype=numpy.float32)
+    #res = v2b_dist
+
+    DP = numpy.sqrt(PX**2 + PY**2 + PZ**2)
+    v2b_cos = numpy.array( numpy.sqrt(DOT / DP), dtype=numpy.float32)
+
+    m = numpy.median(DOT)
+    dd = 2 # 2 mm - distance from beam main axis
+    min_cos = m  / numpy.sqrt(m**2+ dd**2)
+    print(f"min_cos = {min_cos}, m = {m}")
+    v2b_cos[ v2b_cos < min_cos ] = 0
+    v2b_cos[ v2b_cos >= min_cos ] = 1
+
+    res = v2b_cos
+
+    if vti_file is not None:
+        saveToVTI(vti_file, res, s, n, o)
+
+    return res
 
 class VMC:
     def __init__(self, rass_data):
@@ -400,6 +502,15 @@ class VMC:
         save_matrix(self.condInterestingVoxels, interesting_voxels_file)
 
 
+        #c = 1
+        #for b in self.conf_data['beamlets']:
+        #    d = calc_v2b_dist(self.plan_origin, self.plan_spacing, self.plan_n, b, 
+        #                      self.rass_data.output(f"plan_DISTANCES_{b['idx']}_{self.conf_data['beam_number']}.vti"))
+        #    c += 1
+        #    if c > 5:
+        #        break
+
+
         ######################################################################################################
         # Tutaj tworzę transformowany obraz CT. Obraz musi byc rozszerzony co najmniej do konturów Patient
         # outline, albo skin albo body.
@@ -418,6 +529,10 @@ class VMC:
         bb = []
         imax = 0
         for b in self.conf_data['beamlets']:
+            b['plan_origin'] = self.plan_origin
+            b['plan_spacing'] = self.plan_spacing
+            b['plan_n'] = self.plan_n
+
             bb.append(b)
             imax += 1
             if "ray_calc_max_beamlets" in options and options["ray_calc_max_beamlets"] >= 0:
@@ -438,6 +553,7 @@ class VMC:
 
         log.info("Min total dose = %f, Max total dose = %f" % (numpy.min(self.total_doses), numpy.max(self.total_doses)))
         saveToVTI(self.rass_data.output("beamlet_total_for_beam_%d" % self.conf_data["beam_number"]), self.total_doses, self.spacing, self.n, self.orig)
+        saveToVTI(self.rass_data.output("beamlet_fluence_total_for_beam_%d" % self.conf_data["beam_number"]), self.fluence_total_doses, self.spacing, self.n, self.orig)
 
         os.chdir(oldWorkingDirectory)
         return self.beamlets_doses.copy()
@@ -482,12 +598,11 @@ class VMC:
         fout.write(bny)
         fout.write(bnz)
 
-        dcorr = [-0.5, -0.5, -0.5]
+        dcorr = [-0.5, 0.0, -0.5]
+        #dcorr = [0.0, 0.0, 0.0]
         for d in range(3):
-            #print "orig: %f" % self.orig[d]
             for i in range(0, self.n[d]+1):
                 b = struct.pack("f", (self.orig[d] + self.spacing[d] * i + dcorr[d] * self.spacing[d]))
-                #print "[%d,%d]=%f" % (d, i, self.orig[d] + self.spacing[d] * i + dcorr[d] * self.spacing[d])
                 fout.write(b)
 
         if bDimFromCT:
@@ -552,6 +667,7 @@ class VMC:
         npar[cond2] += -0.15000
 
         npar[npar < 0] = 0
+        npar[npar > 3.8] = 3.8
 
 
         if (self.water_phantom):

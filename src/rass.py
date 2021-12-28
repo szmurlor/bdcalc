@@ -196,3 +196,6 @@ class RASSData:
 
     def output_init_folder(self, folder):
         return self._init_folder(self.output(folder))
+
+    def __str__(self) -> str:
+        return f"[RASSData: data={self.data}"

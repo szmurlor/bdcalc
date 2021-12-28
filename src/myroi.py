@@ -119,6 +119,38 @@ class MyRoi:
 		return False
 
 	def mark(self, xb, yb, dx, dy, kmax, jmax, imax, z, marks, sid, debug=False, ctgriddata=None):
+		last_z = None
+		do_mark = True
+
+		X = (np.ones( (jmax,1) )@np.arange(xb , xb + kmax*dx, dx ).reshape(1,kmax)).reshape(kmax*jmax,1)
+		Y = (np.arange(yb , yb + jmax*dy, dy ).reshape(jmax,1)@np.ones( (1, kmax) )).reshape(kmax*jmax,1)
+		XY = np.hstack([X,Y])
+		for l in range(0, self.n):
+			if (last_z is None) or (last_z != self.z[l]):
+				do_mark = True
+				last_z = self.z[l]
+			else:
+				# if new contour have the same z then clear marks for the holes
+				do_mark = False
+
+			i = int((self.z[l] - z[0] + 0.5*(z[1] - z[0])) / (z[1] - z[0]))
+			if i < 0 or i >= imax:
+				continue
+
+			bools = self.paths[l].contains_points(XY)
+			bools = bools.reshape(jmax, kmax)
+
+			if do_mark:
+				marks[i,:,:] = np.bitwise_or(marks[i,:,:], bools * sid)
+			else:
+				print("Odznaczam...")
+				marks[i,:,:] = np.bitwise_and( marks[i,:,:], np.bitwise_not(bools * sid))
+
+		self.countVoxels(marks, sid)
+
+
+
+	def mark_old(self, xb, yb, dx, dy, kmax, jmax, imax, z, marks, sid, debug=False, ctgriddata=None):
 		log.info('Marking %s by %d : [%g:%g]x[%g:%g]x[%g:%g]' % ( self.name, sid, self.xmin, self.xmax, self.ymin, self.ymax, self.z[0], self.z[self.n-1] ))
 		fact = 0.1  # security factor
 		if ctgriddata is not None:
@@ -130,7 +162,6 @@ class MyRoi:
 		iprev = -1 # used when the contours are coarser than the grid z-layers
 		last_z = None
 		do_mark = True
-		sid_to_check = sid
 		for l in range(0, self.n):
 			if (last_z is None) or (last_z != self.z[l]):
 				do_mark = True
